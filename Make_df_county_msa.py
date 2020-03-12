@@ -44,7 +44,7 @@ for state in range_statecodes:
         Next we create a single fips variable.
     '''
     try:
-        df_load = pd.read_csv(url.format(str(state).zfill(2)), dtype = dtypes_centers)
+        df_load = pd.read_csv(url.format(str(state).zfill(2)), dtype = dtypes_centers, encoding = 'ISO-8859-1')
     except:
         continue
     
@@ -119,6 +119,10 @@ df = df_centers_panel.merge(df_msa_panel, how = 'left', on = ['fips','date'])
 
 ## Drop double colums
 df.drop(columns = ['comp_name','state'], inplace = True)
+
+# Add variables
+## ln pop
+df['ln_pop'] = np.log(df.population)
 
 # Save df
 df.to_csv('Data/data_msa_popcenter.csv')
