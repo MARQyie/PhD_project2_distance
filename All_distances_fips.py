@@ -106,9 +106,6 @@ unique_coorcomb['distance'] = get_distance_numba(unique_coor1_np, unique_coor2_n
 #------------------------------------------------------------
 # Save the df
 #------------------------------------------------------------
-# Prelims
-compression_opts = dict(method='zip', archive_name='data_all_distances.csv')
-
 # Save
-unique_coorcomb.to_csv('data_all_distances.zip', index=False, compression=compression_opts)
-#unique_coorcomb.to_csv('Data/data_all_distances.zip', index=False, compression=compression_opts)
+unique_coorcomb.to_csv('data_all_distances.csv.gz', index=False, compression = 'gzip')
+#unique_coorcomb.to_csv('Data/data_all_distances.csv.gz', index=False, compression= 'gzip')
