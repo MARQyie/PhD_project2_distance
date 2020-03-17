@@ -1,7 +1,7 @@
 # Setup the df 
 ''' This script makes the final df (before data cleaning). 
     
-    Final df: MSA-bank/thrift-level dataset
+    Final df: MSA-lender-level dataset per year
 '''
 
 #------------------------------------------------------------
@@ -103,13 +103,84 @@ for year in range(start,end + 1):
     df_hmda_load = pd.read_csv(file_hmda.format(year), dtype = dtypes_col_hmda)
     
     ## Merge HMDA, LF and SDI
-    ### First SDI and LF
+    ### 1) SDI and LF
     df_sdilf = df_sdi[df_sdi.date == year].merge(df_lf[df_lf['CERT{}'.format(str(year)[2:4])].isin(df_sdi.cert)],\
-                            how = 'left', left_on = 'cert',\
+                            how = 'outer', left_on = 'cert',\
                             right_on = 'CERT{}'.format(str(year)[2:4]), indicator = True)
-    #### Drop left_only
+    #### Drop left_only in _merge
     df_sdilf = df_sdilf[df_sdilf._merge == 'both'].drop(columns = '_merge')
     
-    ### Second SDILF with HMDA
-    df_main = df_sdilf.merge(df_hmda, how = 'outer', left_on = 'hmprid', right_on = 'respondent_id',\
-                       indicator = True)
+    ### 2) SDILF with HMDA
+    df_main = df_sdilf.merge(df_hmda_load, how = 'outer', left_on = ['date','hmprid'],\
+                             right_on = ['date','respondent_id'], indicator = True)
+    
+    #### Drop left_only in _merge
+    df_main = df_main[df_main._merge == 'both'].drop(columns = '_merge')
+    
+    ## Only keep MSA that are in the df_msa
+    df_main = df_main[df_main.fips.isin(df_msa[df_msa.date == year].fips.unique())]
+    
+    ## Calculate the minimum lender-borrower distance for each entry
+    df_main['distance'] = df_main.apply(lambda data: \
+           minDistanceLenderBorrower(data.cer, data.fips, df_msa.fips, df_sod.fips,\
+                                     df_sod.cert, df_distances), axis = 1)
+    
+    ## Delete df_hmda_load to save RAM
+    del df_hmda_load
+    
+    #------------------------------------------------------------
+    # Aggregate data to MSA-lender-level
+    
+    # 1) Aggregate portfolio-specific variables
+    df_agg = df_main.groupby(['date','cert','msamd'])[['lti','ln_loanamout','ln_appincome','distance']].mean()
+    df_agg['subprime'] = df_main.groupby(['date','cert','msamd']).apply(lambda x: np.sum(x.subprime) / len(x.subprime))
+    df_agg['secured'] = df_main.groupby(['date','cert','msamd']).apply(lambda x: np.sum(x.secured) / len(x.secured))
+    
+    # 2) Add Loan sales variables
+    ## Fraction based on number of loans
+    df_agg['ls_num'] = df_main.groupby(['date','cert','msamd']).apply(lambda x: np.sum(x.ls) / len(x.ls))
+    df_agg['ls_gse_num'] = df_main.groupby(['date','cert','msamd']).apply(lambda x: np.sum(x.ls_gse) / len(x.ls_gse))
+    df_agg['ls_priv_num'] = df_main.groupby(['date','cert','msamd']).apply(lambda x: np.sum(x.ls_priv) / len(x.ls_priv))
+    df_agg['sec_num'] = df_main.groupby(['date','cert','msamd']).apply(lambda x: np.sum(x.sec) / len(x.sec))
+    
+    ## Fraction based on value of loans
+    df_agg['ls_val'] = df_main.groupby(['date','cert','msamd']).apply(lambda x: np.sum(x.ls * x.loan_amount_000s) \
+                                                               / np.sum(x.loan_amount_000s))
+    df_agg['ls_gse_val'] = df_main.groupby(['date','cert','msamd']).apply(lambda x: np.sum(x.ls_gse * x.loan_amount_000s) \
+                                                                   / np.sum(x.loan_amount_000s))
+    df_agg['ls_priv_val'] = df_main.groupby(['date','cert','msamd']).apply(lambda x: np.sum(x.ls_priv * x.loan_amount_000s) \
+                                                                    / np.sum(x.loan_amount_000s))
+    df_agg['sec_val'] = df_main.groupby(['date','cert','msamd']).apply(lambda x: np.sum(x.sec * x.loan_amount_000s) \
+                                                                / np.sum(x.loan_amount_000s))   
+    ## Dummy
+    df_agg['ls_dum' ] = (df_main.groupby(['date','cert','msamd']).ls.sum() > 0.0) * 1
+    df_agg['ls_gse_dum' ] = (df_main.groupby(['date','cert','msamd']).ls_gse.sum() > 0.0) * 1
+    df_agg['ls_priv_dum' ] = (df_main.groupby(['date','cert','msamd']).ls_priv.sum() > 0.0) * 1
+    df_agg['sec_dum' ] = (df_main.groupby(['date','cert','msamd']).sec.sum() > 0.0) * 1
+    
+    # 3) Bank/Thrift level controls
+    ## Reset index before merge
+    df_agg.reset_index(inplace = True)
+        
+    ## add ln_ta, ln_emp and bank indicator
+    df_agg = df_agg.merge(df_sdi[df_sdi.date == year][['cert','cb','ln_ta','ln_emp']],\
+                          how = 'left', on = ['date','cert'])
+    
+    ## Add number of branches
+    num_branches = df_sod[df_sod.date == year].groupby(['date','cert']).CERT.count().rename('num_branch')
+    df_agg = df_agg.merge(num_branches, how = 'left', left_on = ['date','cert'],\
+                          right_on = [num_branches.index[0], num_branches.index[1]])
+    
+    # 4) MSA level
+    # from df_msa
+    df_msa_agg = df_msa[df_msa.date == year].groupby(['date','cbsa_code'])[['ln_pop', 'density', 'hhi', 'ln_mfi', 'dum_min']].mean()
+    df_agg = df_agg.merge(df_msa_agg, how = 'left', left_on = ['date','msamd'], right_on = [df_msa_agg.index[0], df_msa_agg.index[1]])
+    
+    # Add average lending distance per MSA
+    distance_msa = df_main.groupby('msamd').distance.apply(lambda x: np.log(1 + x.mean())).rename('mean_distance')
+    df_agg = df_agg.merge(distance_msa, how = 'left', left_on = 'msamd', right_on = distance_msa.index)
+    
+    #------------------------------------------------------------
+    # Save df_agg
+    
+    df_agg.to_csv('Data/data_agg_{}.csv.gz'.format(year), index = False, compression = 'gzip')
