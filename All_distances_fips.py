@@ -13,23 +13,23 @@
 
 # Set working directory
 import os
-os.chdir(r'C:\Users\mark0\Documents\RUG\PhD\PhD_project2_distance')
-#os.chdir(r'X:/My Documents/PhD/Materials_papers/2-Working_paper_competition')
+#os.chdir(r'C:\Users\mark0\Documents\RUG\PhD\PhD_project2_distance')
+os.chdir(r'D:\RUG\PhD\Materials_papers\2-Working_paper_competition')
 
 # Load packages
 import pandas as pd
 import numpy as np
 from itertools import combinations
-from numba import cuda, jit, prange, vectorize, guvectorize
+from numba import jit, prange
 
 #------------------------------------------------------------
 # Load the data 
 #------------------------------------------------------------
 
-df_msa = pd.read_csv('data_msa_popcenter.csv', index_col = 0, \
-                     dtype = {'fips':'str','cbsa_code':'str'}) 
-#df_msa = pd.read_csv('Data/data_msa_popcenter.csv', index_col = 0, \
+#df_msa = pd.read_csv('data_msa_popcenter.csv', index_col = 0, \
 #                     dtype = {'fips':'str','cbsa_code':'str'}) 
+df_msa = pd.read_csv('Data/data_msa_popcenter.csv', index_col = 0, \
+                     dtype = {'fips':'str','cbsa_code':'str'}) 
 
 #------------------------------------------------------------
 # Get the unique fips and the corresponding coordinates
@@ -106,9 +106,5 @@ unique_coorcomb['distance'] = get_distance_numba(unique_coor1_np, unique_coor2_n
 #------------------------------------------------------------
 # Save the df
 #------------------------------------------------------------
-# Prelims
-compression_opts = dict(method='zip', archive_name='data_all_distances.csv')
-
-# Save
-unique_coorcomb.to_csv('data_all_distances.zip', index=False, compression=compression_opts)
-#unique_coorcomb.to_csv('Data/data_all_distances.zip', index=False, compression=compression_opts)
+#unique_coorcomb.to_csv('data_all_distances.zip', index=False, compression=compression_opts)
+unique_coorcomb.to_csv('Data/data_all_distances.csv.gz', index = False, compression = 'gzip')

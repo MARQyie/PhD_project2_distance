@@ -25,11 +25,12 @@ os.chdir(r'X:/My Documents/PhD/Materials_papers/2-Working_paper_competition')
 import pandas as pd
 import numpy as np
 
-from determine_ethnicity import determineEthnicity
+from Code_docs.determine_ethnicity import determineEthnicity
 
 #------------------------------------------------------------
 # Set Parameters
 #------------------------------------------------------------
+
 start = 2010
 end = 2017
 
@@ -51,7 +52,6 @@ file_hmda = r'hmda_{}_nationwide_originated-records_codes.zip'
 dtypes_col_hmda = {'state_code':'str', 'county_code':'str','msamd':'str',\
                    'census_tract_number':'str'}
 na_values = ['NA   ', 'NA ', '...',' ','NA  ','NA      ','NA     ','NA    ','NA']
-compression_opts = dict(method='zip', archive_name='hmda.csv')
 
 # Load data
 ## Lender file
@@ -60,8 +60,7 @@ df_lf = pd.read_stata(path_lf + file_lf, columns = vars_lf)
 # HMDA
 for year in range(start,end + 1):
     #Load the dataframe in a temporary frame
-    df_chunk = pd.read_csv(path_hmda + file_hmda.format(year)), index_col = 0, chunksize = 1e6, \
-                  na_values = na_values, dtype = dtypes_col_hmda)
+    df_chunk = pd.read_csv(path_hmda + file_hmda.format(year), index_col = 0, chunksize = 1e6, na_values = na_values, dtype = dtypes_col_hmda)
     
     chunk_list = []  # append each chunk df here 
 
@@ -69,7 +68,7 @@ for year in range(start,end + 1):
     for chunk in df_chunk:
         # Filter data
         ## Remove credit unions and mortgage institutions (CHECK WITH AVERY ET AL 2007 LATER), and remove NA in msamd
-        chunk_filtered = chunk[chunk.respondent_id.isin(df_lf[df_lf['CERT'.format(str(year)[2:4])] >= 0.0].hmprid)].\
+        chunk_filtered = chunk[chunk.respondent_id.isin(df_lf[df_lf['CERT{}'.format(str(year)[2:4])] >= 0.0].hmprid)].\
                          dropna(axis = 0, how = 'any', subset = ['msamd','loan_amount_000s','applicant_income_000s'])
         
         ## Make a fips column and remove separate state and county
@@ -129,4 +128,4 @@ for year in range(start,end + 1):
     df_hmda = pd.concat(chunk_list)
     
     # Save as zipped dataframe
-    df_hmda.to_csv('Data/data_hmda_{}.zip'.format(year), index=False, compression=compression_opts)
+    df_hmda.to_csv('Data/data_hmda_{}.csv.gz'.format(year), index = False, compression = 'gzip')

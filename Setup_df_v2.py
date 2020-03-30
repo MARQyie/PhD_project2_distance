@@ -10,11 +10,14 @@
 
 # Set working directory
 import os
-os.chdir(r'X:/My Documents/PhD/Materials_papers/2-Working_paper_competition')
+os.chdir(r'E:/2-Working_paper_competition')
 
 # Load packages
-import pandas as pd
 import numpy as np
+import pandas as pd
+import multiprocessing as mp # For parallelization
+from joblib import Parallel, delayed # For parallelization
+from tqdm import tqdm
 
 #------------------------------------------------------------
 # Parameters
@@ -22,13 +25,14 @@ import numpy as np
 
 start = 2010
 end = 2017
+num_cores = mp.cpu_count()
 
 #------------------------------------------------------------
 # Setup necessary functions
 #------------------------------------------------------------
 
-# Minimum distance
-def minDistanceLenderBorrower(hmda_cert,hmda_fips,msa_fips,sod_fips,sod_cert,dist_fips1,dist_fips2,dist_dist):
+# Minimum distance       
+def minDistanceLenderBorrower(hmda_cert,hmda_fips):
     ''' This methods calculates the minimum distance between a lender (a specific
         branche of a bank or thrift) and a borrower (a unknown individual) based on
         the respective fips codes. Calls upon the distance matrix calculated by the
@@ -46,24 +50,20 @@ def minDistanceLenderBorrower(hmda_cert,hmda_fips,msa_fips,sod_fips,sod_cert,dis
     Float
 
     '''
-
+    
     # Make a subset of branches where the FDIC certificates in both datasets match  
     branches = sod_fips[sod_cert == hmda_cert]
         
     # Get the minimum distance
-    if not hmda_cert in sod_cert:
-        return (np.nan)
-    elif hmda_fips in branches:
-        return (0.0)
-    else:
-        try:
-            output = np.min(dist_dist[(dist_fips1 == hmda_fips) & (np.isin(dist_fips2,branches))])
-        except:
-            return(np.nan)
+    try:
+        output = np.min(dist_dist[(dist_fips1 == hmda_fips) & (np.isin(dist_fips2,branches))])
+    except:
+        output = np.nan
+    
+    return(output)
 
-        return(output)
-
-vecMinDistanceLenderBorrower = np.vectorize(minDistanceLenderBorrower, excluded = range(2,8))
+## Vectorize the function
+vecMinDistanceLenderBorrower = np.vectorize(minDistanceLenderBorrower)
 
 #------------------------------------------------------------
 # Load all dfs that do not need to be read in the loop
@@ -72,28 +72,25 @@ vecMinDistanceLenderBorrower = np.vectorize(minDistanceLenderBorrower, excluded 
 # df MSA
 df_msa = pd.read_csv('Data/data_msa_popcenter.csv', index_col = 0, dtype = {'fips':'str','cbsa_code':'str'}) 
         
-# df Distances
-df_distances = pd.read_csv('Data/data_all_distances.csv.gz', dtype = {'fips_1':'str','fips_2':'str'})
-distances_fips1 = df_distances['fips_1'].to_numpy(dtype = str)
-distances_fips2 = df_distances['fips_2'].to_numpy(dtype = str)
-distances_distance = df_distances['distance'].to_numpy(dtype = float)
-
 # df SOD
 df_sod = pd.read_csv('Data/df_sod_wp2.csv', index_col = 0, dtype = {'fips':'str'})
+
+# df Distances
+df_distances = pd.read_csv('Data/data_all_distances.csv.gz', dtype = {'fips_1':'str','fips_2':'str'})
 
 # df SDI
 df_sdi = pd.read_csv('Data/df_sdi_wp2.csv', index_col = 0)
 
 # df LF
 ## Prelims
-path_lf = r'X:/My Documents/Data/Data_HMDA_lenderfile/'
-file_lf = r'hmdpanel17.dta'
+#path_lf = r'X:/My Documents/Data/Data_HMDA_lenderfile/'
+file_lf = r'Data/hmdpanel17.dta'
 vars_lf = ['hmprid'] + ['CERT{}'.format(str(year)[2:4]) for year in range(start, end +1)] \
           + ['ENTITY{}'.format(str(year)[2:4]) for year in range(start, end +1)] \
           + ['RSSD{}'.format(str(year)[2:4]) for year in range(start, end +1)]
 
 ## Load df LF
-df_lf = pd.read_stata(path_lf + file_lf, columns = vars_lf)
+df_lf = pd.read_stata(file_lf, columns = vars_lf)
 
 #------------------------------------------------------------
 # Loop over the HMDA data and aggregate to MSA-lender level
@@ -122,22 +119,46 @@ for year in range(start,end + 1):
     df_main = df_sdilf.merge(df_hmda_load, how = 'outer', left_on = ['date','hmprid'],\
                              right_on = ['date','respondent_id'], indicator = True)
     
+    #### Del df_sdilf
+    del df_sdilf
+    
     #### Drop left_only in _merge
     df_main = df_main[df_main._merge == 'both'].drop(columns = '_merge')
     
     ## Only keep MSA that are in the df_msa
     df_main = df_main[df_main.fips.isin(df_msa[df_msa.date == year].fips.unique())]
     
-    ## Calculate the minimum lender-borrower distance for each entry
-    df_main['distance'] = vecMinDistanceLenderBorrower(df_main.cert.to_numpy(dtype = int),\
-                          df_main.fips.to_numpy(dtype = str),\
-                          df_msa[df_msa.date == year].fips.to_numpy(dtype = str),\
-                          df_sod[df_sod.date == year].fips.to_numpy(dtype = str),\
-                          df_sod[df_sod.date == year].cert.to_numpy(dtype = int),\
-                          distances_fips1, distances_fips2, distances_distance)
+    ## Remove all certs in df_main that are not in df_sod
+    df_main = df_main[df_main.cert.isin(df_sod.cert)]
     
-    ## Delete df_hmda_load to save RAM
-    del df_hmda_load
+    ## Calculate the minimum lender-borrower distance for each entry
+    ### Reduce the dimension of df_distances 
+    df_distances_load = df_distances[(df_distances.fips_1.isin(df_hmda_load.fips.unique())) &\
+                 (df_distances.fips_2.isin(df_sod.fips.unique()))]
+    
+    ### Get the unique combinations of fips/cert in df_main
+    unique_fipscert_hmda = df_main.groupby(['fips','cert']).size().reset_index().\
+                           drop(columns = [0]).to_numpy().T
+    
+    ### Set other numpy arrays
+    sod_fips = df_sod[df_sod.date == year].fips.to_numpy(dtype = str)
+    sod_cert = df_sod[df_sod.date == year].cert.to_numpy(dtype = float)
+    dist_fips1 = df_distances_load['fips_1'].to_numpy(dtype = str)
+    dist_fips2 = df_distances_load['fips_2'].to_numpy(dtype = str)
+    dist_dist = df_distances_load['distance'].to_numpy(dtype = float)
+    
+    ### Parallelize the function and calculate distance
+    inputs = tqdm(zip(unique_fipscert_hmda[1], unique_fipscert_hmda[0]))
+
+    if __name__ == "__main__":
+        distance_list = Parallel(n_jobs=num_cores)(delayed(minDistanceLenderBorrower)(cert, fips) for cert, fips in inputs)     
+           
+    ### Merge distance on fips and cert
+    df_main = df_main.merge(unique_fipscert_hmda, how = 'left', on = ['fips','cert'])
+    
+    ## Delete some data to save RAM
+    del df_hmda_load, df_distances_load, unique_fipscert_hmda, sod_fips, sod_cert,\
+        dist_fips1, dist_fips2, dist_dist
     
     #------------------------------------------------------------
     # Aggregate data to MSA-lender-level

@@ -24,11 +24,12 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 import seaborn as sns
-sns.set(style = 'whitegrid', font_scale = 1.75, palette = 'Greys_d'
+sns.set(style = 'whitegrid', font_scale = 1.75, palette = 'Greys_d')
 
 #------------------------------------------------------------
 # Set Parameters
 #------------------------------------------------------------
+
 start = 2010
 end = 2017
 
@@ -89,14 +90,13 @@ for var in vars_needed:
     
     plt.xticks([1], ['Full Sample SDI'])
     
-    fig.savefig('Figures\Box_plots\Box_SDI_{}.png'.format(var)) # MAKE FOLDER!!!
+    fig.savefig('Figures\Box_plots\Box_SDI_{}.png'.format(var)) 
     plt.clf()
 
 ## remove outliers
-#TODO
-
+# NOTE: No outliers to remove
+    
 #------------------------------------------------------------
 # Save the dataframe
 #------------------------------------------------------------
-    
 df_sdi.to_csv('Data/df_sdi_wp2.csv')

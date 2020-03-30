@@ -1,13 +1,10 @@
 # Make County/MSA file
 
-''' This files makes a dataframe will all county fips and matches the to
-    MSA yes/no. We then add the lat and long of the center of population of each county
+''' This files loads all US Census 2010 population center files and makes one df
+    from it. 
     
     We get all county fips and the centers of population from the US Census Bureau
-        https://www.census.gov/geographies/reference-files/time-series/geo/centers-population.html
-   
-    For all the MSA codes, we take data from the US census bureau (delineation files). The files
-    hold from the publishing data until the next file
+    https://www.census.gov/geographies/reference-files/time-series/geo/centers-population.html
 '''
 
 #------------------------------------------------------------

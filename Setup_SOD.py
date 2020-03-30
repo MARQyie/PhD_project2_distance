@@ -18,15 +18,15 @@ os.chdir(r'X:/My Documents/PhD/Materials_papers/2-Working_paper_competition')
 
 # Load packages
 import pandas as pd
-import numpy as np
 
 import matplotlib.pyplot as plt
 import seaborn as sns
-sns.set(style = 'whitegrid', font_scale = 1.75, palette = 'Greys_d'
+sns.set(style = 'whitegrid', font_scale = 1.75, palette = 'Greys_d')
 
 #------------------------------------------------------------
 # Set Parameters
 #------------------------------------------------------------
+
 start = 2010
 end = 2017
 
@@ -74,7 +74,7 @@ df_sod = pd.concat(list_df_sod)
 #------------------------------------------------------------
 
 # Drop all missings in cert, numemp, asset, cb
-df_sdi.dropna(subset = ['cert', 'fips', 'sims_latitude', 'sims_longitude', 'depsumbr'], inplace = True)
+df_sod.dropna(subset = ['cert', 'fips', 'sims_latitude', 'sims_longitude', 'depsumbr'], inplace = True)
 
 # Restrict deposits
 df_sod = df_sod[(df_sod.depsumbr >= 0.0)]
@@ -90,19 +90,18 @@ for var in vars_needed:
     fig, ax = plt.subplots(figsize=(12, 8))
     plt.title('{}'.format(dict_var_names[var]))
     
-    data = df_sdi[var]
+    data = df_sod[var]
     ax.boxplot(data)
     
     plt.xticks([1], ['Full Sample SOD'])
     
-    fig.savefig('Figures\Box_plots\Box_SOD_{}.png'.format(var)) # MAKE FOLDER!!!
+    fig.savefig('Figures\Box_plots\Box_SOD_{}.png'.format(var)) 
     plt.clf()
 
 ## remove outliers
-#TODO
-
+# NOTE: No outliers to remove
+    
 #------------------------------------------------------------
 # Save the dataframe
-#------------------------------------------------------------
-    
-df_sdi.to_csv('Data/df_sod_wp2.csv')
+#------------------------------------------------------------  
+df_sod.to_csv('Data/df_sod_wp2.csv')
