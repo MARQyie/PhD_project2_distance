@@ -1,6 +1,7 @@
 from statsmodels.compat.python import (lrange, iterkeys, iteritems, lzip,
-                                       reduce, itervalues, zip, string_types,
-                                       range)
+                                       itervalues)
+from six import string_types
+from functools import reduce
 
 from collections import OrderedDict
 import datetime
@@ -523,7 +524,7 @@ def _col_params(result, float_format='%.4f', stars=True,show='t'):
 
     def _Intercept_2const(df):
         from pandas.core.indexes.multi import MultiIndex
-        if df.index.contains('Intercept'):
+        if 'Intercept' in df.index:
             if isinstance(df.index,MultiIndex):
                 new_index = []
                 for i in df.index.values:
