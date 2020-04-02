@@ -49,8 +49,12 @@ unique_fips = df_msa.groupby(['fips','latitude','longitude']).size().reset_index
 # Get all unique combinations of fips
 #------------------------------------------------------------
 
+# Find the unique combination of fips and add a list of identical fips
 unique_combinations = pd.DataFrame([list(map(str, comb)) for comb in combinations(unique_fips.fips.tolist(), 2)],
                                     columns = ['fips_1','fips_2'])
+unique_combinations = unique_combinations.append(pd.DataFrame(list(zip(unique_combinations.fips_1.unique(),unique_combinations.fips_1.unique())),\
+                                        columns = ['fips_1','fips_2']), ignore_index = True)
+unique_combinations.sort_values(by = ['fips_1','fips_2'], inplace = True, ignore_index = True)
 
 # Add the coordinates
 ## Fips 1
@@ -108,3 +112,4 @@ unique_coorcomb['distance'] = get_distance_numba(unique_coor1_np, unique_coor2_n
 #------------------------------------------------------------
 #unique_coorcomb.to_csv('data_all_distances.zip', index=False, compression=compression_opts)
 unique_coorcomb.to_csv('Data/data_all_distances.csv.gz', index = False, compression = 'gzip')
+

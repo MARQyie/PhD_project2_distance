@@ -15,6 +15,14 @@ os.chdir(r'X:/My Documents/PhD/Materials_papers/2-Working_paper_competition')
 # Load packages
 import pandas as pd
 import numpy as np
+from numba import njit, jit, prange, boolean
+
+#------------------------------------------------------------
+# Parameters
+#------------------------------------------------------------
+
+start = 2010
+end = 2017
 
 #------------------------------------------------------------
 # Parameters
@@ -26,9 +34,53 @@ end = 2017
 #------------------------------------------------------------
 # Setup necessary functions
 #------------------------------------------------------------
+# Numba isin function
+@njit(parallel=True)
+def in1d_vec_nb(matrix, index_to_remove):
+  #matrix and index_to_remove have to be numpy arrays
+  #if index_to_remove is a list with different dtypes this 
+  #function will fail
+
+  out=np.empty(matrix.shape[0],dtype=boolean)
+  index_to_remove_set=set(index_to_remove)
+
+  for i in prange(matrix.shape[0]):
+    if matrix[i] in index_to_remove_set:
+      out[i]=False
+    else:
+      out[i]=True
+
+  return out
+
+@njit(parallel=True)
+def in1d_scal_nb(matrix, index_to_remove):
+  #matrix and index_to_remove have to be numpy arrays
+  #if index_to_remove is a list with different dtypes this 
+  #function will fail
+
+  out=np.empty(matrix.shape[0],dtype=boolean)
+  for i in prange(matrix.shape[0]):
+    if (matrix[i] == index_to_remove):
+      out[i]=False
+    else:
+      out[i]=True
+
+  return out
+
+@njit
+def isin_nb(matrix_in, index_to_remove):
+  #both matrix_in and index_to_remove have to be a np.ndarray
+  #even if index_to_remove is actually a single number
+  shape=matrix_in.shape
+  if index_to_remove.shape==():
+    res=in1d_scal_nb(matrix_in.reshape(-1),index_to_remove.take(0))
+  else:
+    res=in1d_vec_nb(matrix_in.reshape(-1),index_to_remove)
+
+  return res.reshape(shape)
 
 # Minimum distance
-def minDistanceLenderBorrower(hmda_cert,hmda_fips,msa_fips,sod_fips,sod_cert,dist_fips1,dist_fips2,dist_dist):
+def minDistanceLenderBorrower(hmda_cert,hmda_fips,msa_fips,sod_stcntybr,sod_cert,dist_fips1,dist_fips2,dist_dist):
     ''' This methods calculates the minimum distance between a lender (a specific
         branche of a bank or thrift) and a borrower (a unknown individual) based on
         the respective fips codes. Calls upon the distance matrix calculated by the
@@ -108,6 +160,9 @@ for year in range(start,end + 1):
     
     ## Read HMDA file
     df_hmda_load = pd.read_csv(file_hmda.format(year), dtype = dtypes_col_hmda)
+
+    ## Remove all certs in df_hmda_load that are not in df_sod
+    df_hmda_load = df_hmda_load[df_hmda_load.cert.isin(df_sod.cert)]
     
     ## Merge HMDA, LF and SDI
     ### 1) SDI and LF
@@ -132,8 +187,6 @@ for year in range(start,end + 1):
     df_main['distance'] = vecMinDistanceLenderBorrower(df_main.cert.to_numpy(dtype = int),\
                           df_main.fips.to_numpy(dtype = str),\
                           df_msa[df_msa.date == year].fips.to_numpy(dtype = str),\
-                          df_sod[df_sod.date == year].fips.to_numpy(dtype = str),\
-                          df_sod[df_sod.date == year].cert.to_numpy(dtype = int),\
                           distances_fips1, distances_fips2, distances_distance)
     
     ## Delete df_hmda_load to save RAM
