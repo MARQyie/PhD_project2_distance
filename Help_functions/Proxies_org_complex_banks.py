@@ -27,13 +27,15 @@ import pandas as pd
 import numpy as np
 
 import os
-os.chdir(r'X:\My Documents\Data\Data_SOD')
+#os.chdir(r'X:\My Documents\Data\Data_SOD')
+os.chdir(r'D:\RUG\Data\Data_SOD')
 
 # Function to load the data
 def readSODFiles(use_cols,begin_year,end_year):
     '''This method reads in all the data from the Summary of Deposits and returns
         a dataframe with the selected columns only. Requires numba,jit'''
-    path = r'X:/My Documents/Data/Data_SOD/'
+#    path = r'X:/My Documents/Data/Data_SOD/'
+    path = r'D:/RUG/Data/Data_SOD/'
     df_sod = pd.DataFrame()
     
     #Read data  
