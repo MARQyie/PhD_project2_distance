@@ -19,6 +19,11 @@ import pandas as pd
 import multiprocessing as mp # For parallelization
 from joblib import Parallel, delayed # For parallelization
 
+import matplotlib.pyplot as plt
+import seaborn as sns
+sns.set(style = 'whitegrid', font_scale = 1.75, palette = 'Greys_d')
+
+
 #------------------------------------------------------------
 # Parameters
 #------------------------------------------------------------
@@ -88,6 +93,22 @@ if __name__ == "__main__":
 ## Concat to pd DataFrame
 df_hmda = pd.concat(list_hmda, ignore_index = True) 
 
+## Make boxplots
+vars_needed = ['lti',	'ln_loanamout',	'ln_appincome',	'subprime', 'secured',\
+               'ls','ls_gse', 'ls_priv',	'sec']
+
+for var in vars_needed:
+    fig, ax = plt.subplots(figsize=(12, 8))
+    plt.title('{}'.format(var))
+    
+    data = df_hmda[var]
+    ax.boxplot(data)
+    
+    plt.xticks([1], ['Full Sample HMDI'])
+    
+    fig.savefig('boxplots\Box_HMDI_{}.png'.format(var)) 
+    plt.clf()
+
 # Make main df
 df_main = df_sdilf.merge(df_hmda, how = 'left', left_on = ['date','hmprid'],\
                              right_on = ['date','respondent_id'])
@@ -97,6 +118,7 @@ df_mindist = pd.read_csv('data_min_distances.csv', dtype = {'fips':'str'})
 
 ## Take log of min_distances
 df_mindist['log_min_distance'] = np.log(df_mindist.min_distance + 1)
+df_mindist['log_min_distance_cdd'] = np.log(df_mindist.min_distance_cdd + 1)
 
 #------------------------------------------------------------
 # Aggregate to MSA-lender level
@@ -119,7 +141,7 @@ hhi = df_sod.groupby(['date','fips']).depsumbr.apply(lambda x: ((x / x.sum())**2
 df_msa = df_msa.merge(hhi, how = 'left', left_on = ['date','fips'], right_on = [hhi.index.get_level_values(0), hhi.index.get_level_values(1)])
 
 ## HMDA vars
-ln_mfi = df_main.groupby(['date','fips']).hud_median_family_income.mean().rename('ln_mfi').to_frame()
+ln_mfi = df_main.groupby(['date','fips']).hud_median_family_income.apply(lambda x: np.log(1 + np.mean(x))).rename('ln_mfi').to_frame()
 df_msa = df_msa.merge(ln_mfi, how = 'left', left_on = ['date','fips'], right_on = [ln_mfi.index.get_level_values(0), ln_mfi.index.get_level_values(1)])
 
 dum_min = df_main.groupby(['date','fips']).minority_population.apply(lambda x: (x.mean() > 0.5) * 1).rename('dum_min').to_frame()
@@ -154,7 +176,7 @@ df_grouped = df_main.groupby(['date','cert','msamd'])
 
 # 1) Aggregate portfolio-specific variables
 df_agg = df_grouped[['lti','ln_loanamout','ln_appincome','log_min_distance',\
-'density', 'ln_pop', 'ln_mfi', 'hhi', 'dum_min']].mean()
+'log_min_distance_cdd','density', 'ln_pop', 'ln_mfi', 'hhi', 'dum_min']].mean()
 
 if __name__ == '__main__':
     df_agg['subprime'] = Parallel(n_jobs = num_cores)(delayed(tmpPerc)(group, 'subprime') for name, group in df_grouped)
@@ -192,9 +214,22 @@ num_branches = df_sod.groupby(['date','cert']).cert.count().rename('num_branch')
 df_agg = df_agg.merge(num_branches, how = 'left', left_on = ['date','cert'],\
                       right_on = [num_branches.index.get_level_values(0), num_branches.index.get_level_values(1)])
 
+'''OLD
 # Add average lending distance per MSA
 distance_msa = df_main.groupby(['date','msamd']).log_min_distance.mean().rename('mean_distance').to_frame()
 df_agg = df_agg.merge(distance_msa, how = 'left', left_on = ['date','msamd'], right_on = [distance_msa.index.get_level_values(0), distance_msa.index.get_level_values(1)])
+'''
+
+#------------------------------------------------------------
+# Remove all MSA-Bank pairs with one year of information
+## Make unique combinations and count values
+# HOW??
+unique_comb = df_agg[['msamd','cert']].astype(str).sum(axis = 1)
+drop_comb = np.array(unique_comb.value_counts()[unique_comb.value_counts() > 1].index)
+df_agg = df_agg[unique_comb.isin(drop_comb)]
+
+## Drop na
+df_agg.dropna(inplace = True)
 
 #------------------------------------------------------------
 # Save df_agg
