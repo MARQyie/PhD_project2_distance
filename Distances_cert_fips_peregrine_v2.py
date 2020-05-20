@@ -19,6 +19,7 @@
 
 import os
 os.chdir(r'/data/p285325/WP2_distance/')
+#os.chdir(r'D:/RUG/PhD/Materials_papers/2-Working_paper_competition/Data')
 
 # Load packages
 import numpy as np
@@ -32,7 +33,8 @@ from joblib import Parallel, delayed # For parallelization
 
 start = 2010
 end = 2017
-num_cores = mp.cpu_count()
+#num_cores = mp.cpu_count()
+num_cores = -1
 
 #------------------------------------------------------------
 # Setup necessary functions
@@ -44,7 +46,7 @@ def readHMDA(year):
     filename = 'data_hmda_{}.csv'.format(year)
     
     return (pd.read_csv(filename,\
-                       dtype = {'msamd':'str', 'fips':'str'}, 
+                       dtype = {'msamd':'uint16', 'fips':'uint16'}, 
                        usecols = ['date', 'respondent_id', 'fips']))
     
 # Merge SDI LF   
@@ -66,20 +68,26 @@ def minDistanceLenderBorrower(hmda_fips, hmda_cert):
         the respective fips codes. Calls upon the distance matrix calculated by the
         haversine formula.
     '''
+    global sod_fips, sod_cert, dist_fips1, dist_fips2, dist_dist
     
     # Make a subset of branches where the FDIC certificates in both datasets match  
     branches = sod_fips[sod_cert == hmda_cert]
+    
+    # If lender and borrower are in the same county
+    if hmda_fips in branches:
+        return 0.0, 0.0
         
     # Get the minimum distance
     boolean = (dist_fips1 == hmda_fips) & (np.isin(dist_fips2,branches))
-    dist_list = dist_dist[boolean]
-    dist_cdd_list = dist_dist_cdd[boolean]
-       
-    if dist_list.size != 0:
-      return (np.min(dist_list), np.min(dist_cdd_list))
+          
+    if np.any(boolean):
+        dist_list = dist_dist[boolean]
+        dist_cdd_list = dist_dist_cdd[boolean]
+        
+        return min(dist_list), min(dist_cdd_list)
       
     else:
-      return (np.nan, np.nan)
+        return np.nan, np.nan
     
 #------------------------------------------------------------
 # Load the dfs
@@ -87,25 +95,30 @@ def minDistanceLenderBorrower(hmda_fips, hmda_cert):
     
 # Distance df
 df_distances = pd.read_csv('data_all_distances_v2.csv',\
-                           dtype = {'fips_1':'str','fips_2':'str'})
+                           dtype = {'fips_1':'uint16','fips_2':'uint16'})
    
 # SOD df
-df_sod = pd.read_csv('df_sod_wp2.csv', index_col = 0, dtype = {'fips':'str'},\
+df_sod = pd.read_csv('df_sod_wp2.csv', index_col = 0, dtype = {'fips':'uint16'},\
                      usecols = ['date','fips','cert'])
 
 # df SDI
-df_sdi = pd.read_csv('df_sdi_wp2.csv', usecols = ['date','cert'], dtype = {'cert':'float64'})
+df_sdi = pd.read_csv('df_sdi_wp2.csv', usecols = ['date','cert'])
 
 # df LF
 ## Prelims
 vars_lf = ['hmprid'] + ['CERT{}'.format(str(year)[2:4]) for year in range(start, end +1)]
 
 ## Load df LF
-df_lf = pd.read_csv('hmdpanel17.csv', usecols = vars_lf) 
+df_lf = pd.read_csv('hmdpanel17.csv', usecols = vars_lf)
+
+### reduce dimensions df_lf
+df_lf.dropna(how = 'all', subset = vars_lf[1:], inplace = True) # drop rows with all na
+df_lf = df_lf[~(df_lf[vars_lf[1:]] == 0.).any(axis = 1)] # Remove cert with value 0.0
+df_lf = df_lf[df_lf[vars_lf[1:]].all(axis = 1)] # Drop rows that have different column values (nothing gets deleted: good)
 
 # Merge df SDI and df LF   
 if __name__ == "__main__":
-    list_sdilf = Parallel(n_jobs=num_cores)(delayed(mergeSDILF)(year) for year in range(start,end + 1)) 
+    list_sdilf = Parallel(n_jobs=num_cores, prefer="threads")(delayed(mergeSDILF)(year) for year in range(start,end + 1)) 
 
 ## Concat to pd DataFrame
 df_sdilf = pd.concat(list_sdilf, ignore_index = True)
@@ -115,7 +128,7 @@ df_sdilf = df_sdilf[df_sdilf.columns[~df_sdilf.columns.str.contains('CERT')]].dr
 
 # Load HMDA
 if __name__ == "__main__":
-    list_hmda = Parallel(n_jobs=num_cores)(delayed(readHMDA)(year) for year in range(start,end + 1)) 
+    list_hmda = Parallel(n_jobs=num_cores, prefer="threads")(delayed(readHMDA)(year) for year in range(start,end + 1)) 
 
 ## Concat to pd DataFrame
 df_hmda = pd.concat(list_hmda, ignore_index = True) 
@@ -124,13 +137,13 @@ df_hmda = pd.concat(list_hmda, ignore_index = True)
 # Get all possible cert-fips combinations
 #------------------------------------------------------------
 # Merge HMDA with SDILF
-df_main = df_sdilf.merge(df_hmda, how = 'left', left_on = ['date','hmprid'],\
+df_main = df_sdilf.merge(df_hmda, how = 'inner', left_on = ['date','hmprid'],\
                              right_on = ['date','respondent_id'])
 
 # Get the unique combinations of fips/cert in df_main
 hmda_fips, hmda_cert = np.array(df_main.groupby(['fips','cert']).size().reset_index().\
                            drop(columns = [0])).T
-                           
+
 # Get the unique combinations of fips/cert in df_sod
 sod_fips, sod_cert = np.array(df_sod.groupby(['fips','cert']).size().reset_index().\
                            drop(columns = [0])).T
@@ -150,7 +163,7 @@ dist_fips1, dist_dist_cdd, dist_fips2, dist_dist = np.array(df_distances).T
 inputs = zip(hmda_fips, hmda_cert)
 
 if __name__ == "__main__":
-    distance_list, distance_cdd_list = zip(*Parallel(n_jobs=num_cores)(delayed(minDistanceLenderBorrower)(fips, cert) for fips, cert in inputs))     
+    distance_list, distance_cdd_list = zip(*Parallel(n_jobs=num_cores, prefer="threads")(delayed(minDistanceLenderBorrower)(fips, cert) for fips, cert in inputs))     
            
 #------------------------------------------------------------
 # Make a pandas DataFrame and save to csv

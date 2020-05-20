@@ -10,8 +10,8 @@
 
 # Set working directory
 import os
-#os.chdir(r'/data/p285325/WP2_distance/')
-os.chdir(r'D:/RUG/PhD/Materials_papers/2-Working_paper_competition/Data')
+os.chdir(r'/data/p285325/WP2_distance/')
+#os.chdir(r'D:/RUG/PhD/Materials_papers/2-Working_paper_competition/Data')
 
 # Load packages
 import numpy as np
@@ -25,7 +25,8 @@ from joblib import Parallel, delayed # For parallelization
 
 start = 2010
 end = 2017
-num_cores = mp.cpu_count()
+#num_cores = mp.cpu_count()
+num_cores = 12
 
 #------------------------------------------------------------
 # Setup necessary functions
@@ -84,13 +85,19 @@ df_msa['cbsa_code'] = df_msa['cbsa_code'].astype('uint16')
 ## Remove duplicate rows
 df_msa.drop_duplicates(subset = ['population', 'latitude', 'longitude', 'fips', \
                                  'cbsa_code', 'ln_pop'], inplace = True)
-df_msa.drop(columns = 'date', inplace = True)
-         
+df_msa.drop(columns = ['date','population','ln_pop'], inplace = True)
+                  
 # SOD df
 df_sod = pd.read_csv('df_sod_wp2.csv', index_col = 0, dtype = {'fips':'uint16'})
 
 # df SDI
 df_sdi = pd.read_csv('df_sdi_wp2.csv', index_col = 0)
+
+# df pop
+df_pop = pd.read_csv('data_pop.csv')
+
+# df_int
+df_int = pd.read_csv('data_internet.csv')
 
 # df LF
 ## Prelims
@@ -104,7 +111,7 @@ df_lf.dropna(how = 'all', subset = vars_lf[1:], inplace = True) # drop rows with
 df_lf = df_lf[~(df_lf[vars_lf[1:]] == 0.).any(axis = 1)] # Remove cert with value 0.0
 df_lf = df_lf[df_lf[vars_lf[1:]].all(axis = 1)] # Drop rows that have different column values (nothing gets deleted: good)
 
-### Merge df SDI and df LF   
+# Merge df SDI and df LF   
 if __name__ == "__main__":
     list_sdilf = Parallel(n_jobs=num_cores)(delayed(mergeSDILF)(year) for year in range(start,end + 1)) 
 
@@ -120,13 +127,7 @@ if __name__ == "__main__":
 
 ## Concat to pd DataFrame
 df_hmda = pd.concat(list_hmda, ignore_index = True) 
-
-## Make boxplots
-vars_needed = ['lti',	'ln_loanamout',	'ln_appincome',	'subprime', 'secured',\
-               'ls','ls_gse', 'ls_priv',	'sec']
-
-for var in vars_needed:
-    makeBoxplots(var)
+df_hmda = df_hmda[df_hmda.loan_purpose == 1]
 
 # Make main df
 df_main = df_sdilf.merge(df_hmda, how = 'left', left_on = ['date','hmprid'],\
@@ -151,6 +152,12 @@ df_main = df_main[df_main.cert.isin(df_sod.cert)]
 # Merge distance on fips and cert
 df_main = df_main.merge(df_mindist, how = 'left', on = ['fips','cert'])
 
+# Merge population on fips and date
+df_main = df_main.merge(df_pop, how = 'left', on = ['fips','date'])
+
+# Merge internet on fips and date
+df_main = df_main.merge(df_int[['fips','date', 'perc_intsub', 'perc_broadband', 'perc_noint']], how = 'left', on = ['fips','date'])
+
 # add MSA level variables on FIPS
 ## Add vars from SOD to df_msa
 density = df_sod.groupby(['date','fips']).fips.count().rename('density').to_frame().reset_index()
@@ -174,7 +181,7 @@ df_grouped = df_main.groupby(['date','cert','msamd'])
 
 # 1) Aggregate portfolio-specific variables
 df_agg = df_grouped[['lti','ln_loanamout','ln_appincome','log_min_distance',\
-'log_min_distance_cdd','density', 'ln_pop', 'ln_mfi', 'hhi']].mean()
+'log_min_distance_cdd']].mean()
 
 if __name__ == '__main__':
     df_agg['subprime'] = applyParallel(df_grouped, tmpPerc, 'subprime')
@@ -212,6 +219,14 @@ num_branches = df_sod.groupby(['date','cert']).cert.count().rename('num_branch')
 df_agg = df_agg.merge(num_branches, how = 'left', left_on = ['date','cert'],\
                       right_on = [num_branches.index.get_level_values(0), num_branches.index.get_level_values(1)])
 
+# 4) Add MSA specific variables
+df_agg.reset_index(inplace = True)
+
+df_grouped = df_main.groupby(['date','msamd'])    
+msa_data = df_grouped[['density', 'pop_area', 'ln_mfi', 'hhi', 'perc_intsub', 'perc_broadband', 'perc_noint']].mean().reset_index()
+
+df_agg = df_agg.merge(msa_data, how = 'left', on = ['date','msamd'])
+
 '''OLD
 # Add average lending distance per MSA
 distance_msa = df_main.groupby(['date','msamd']).log_min_distance.mean().rename('mean_distance').to_frame()
@@ -219,14 +234,16 @@ df_agg = df_agg.merge(distance_msa, how = 'left', left_on = ['date','msamd'], ri
 '''
 
 #------------------------------------------------------------
-# Remove all respective MSA/banks with only one observation and drop na
+# Remove all respective MSA/banks with only one observation and drop na (not in internet variables)
 drop_msamd = set(df_agg.msamd.value_counts()[df_agg.msamd.value_counts() > 1].index)
 drop_cert = set(df_agg.cert.value_counts()[df_agg.cert.value_counts() > 1].index)
 
 df_agg = df_agg[(df_agg.msamd.isin(drop_msamd)) & (df_agg.cert.isin(drop_cert))]
 
 ## Drop na
-df_agg.dropna(inplace = True)
+subset = ['log_min_distance', 'ls_num', 'lti', 'ln_loanamout', 'ln_appincome', 'subprime', \
+               'cb', 'ln_ta', 'ln_emp', 'num_branch', 'pop_area', 'density', 'hhi', 'ln_mfi']
+df_agg.dropna(subset = subset, inplace = True)
 
 #------------------------------------------------------------
 # Save df_agg

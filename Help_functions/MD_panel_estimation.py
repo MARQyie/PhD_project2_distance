@@ -50,7 +50,7 @@ class Metrics:
             return self.tss
     
     def rSquared(self):
-        '''returns calculated value of r^2'''
+        '''returns calculated value of the (centered) r^2'''
         self.rsquared = 1 - self.rss / self.tss
         return self.rsquared
     
@@ -169,9 +169,6 @@ class Transformation:
         ''' Creates the correct FE columns. If there are any combinations of 
         FE the method creates a new column '''
         
-        # Run inventorizeFE
-        self = self.inventorizeFE()
-        
         # Check whether there is only one FE and whether that has a combination
         if not self._multFE:
             if self._boolCombFE: # has a FE combination               
@@ -218,10 +215,7 @@ class Transformation:
     def dataTransformation(self):
         ''' Transforms that data '''
         # NOTE does not work on three FE yet
-        
-        # Call FEColumns
-        self = self.FEColumns()
-        
+  
         # Make df with _dep_var and _data
         df = pd.concat([self._depvar, self._data], axis = 1)
         
@@ -254,13 +248,31 @@ class Transformation:
             
             return self
         elif self._FE.shape[1] == 3:
-            raise RuntimeError('3FE does not work yet')
+            # Get the means of the df
+            df_mean_fe1 = df.groupby(self._FE.iloc[:,0]).transform('mean')
+            df_mean_fe2 = df.groupby(self._FE.iloc[:,1]).transform('mean')
+            df_mean_fe3 = df.groupby(self._FE.iloc[:,2]).transform('mean')
+            df_mean = df.mean()
+            
+            # Demean the df
+            df_demeaned = df - df_mean_fe1 - df_mean_fe2 - df_mean_fe3 + 2 * df_mean
+            
+            # Add _dep_var_demeaned and _data_demeaned to self and return
+            self._depvar_demeaned = df_demeaned.iloc[:,0]
+            self._data_demeaned = df_demeaned.iloc[:,1:]
             
         else:
             raise RuntimeError('Too many FE') 
     
     def transform(self):
         ''' Returns transformed data as df '''
+        # Run inventorizeFE
+        self = self.inventorizeFE()
+                     
+        # Call FEColumns
+        self = self.FEColumns()
+        
+        #Run dataTransformation
         self = self.dataTransformation()
                
         return (self._depvar_demeaned, self._data_demeaned)
@@ -284,6 +296,7 @@ class MultiDimensionalOLS(Metrics, Transformation):
         self.std = None
         self.resid = None
         self.cov_type = None
+        self._name = 'Code_docs.Help_functions.MD_panel_estimation'
     
     # Calculate Residuals
     def residuals(self):
@@ -365,7 +378,7 @@ class MultiDimensionalOLS(Metrics, Transformation):
             else:
                 data['resid'] = self.resid * c
 
-        # define methods that allows the parallel estimation of the clusters (Sum_g=1^G X'_g u_g u'_g Xg)
+        # define methods that allows for parallel estimation of the clusters (Sum_g=1^G X'_g u_g u'_g Xg)
         num_cores = mp.cpu_count() # Get number of cores
         
         def clusterErrors(df, resid, col_names):
@@ -388,7 +401,7 @@ class MultiDimensionalOLS(Metrics, Transformation):
             ## Calculate the clustered errors
             data_grouped = data.groupby(data.index)
             
-            if __name__ == '__main__':
+            if __name__ == '__main__' or __name__ == self._name:
                 error_matrices = Parallel(n_jobs = num_cores)(delayed(clusterErrors)(group, 'resid', col_labels) for name, group in data_grouped)
             
             ## Sum the matrices elementwise
@@ -413,7 +426,7 @@ class MultiDimensionalOLS(Metrics, Transformation):
             xtx_inv = np.linalg.inv(xtx)
             
             # Estimate the variance matrix for each unique group
-            if __name__ == '__main__':
+            if __name__ == '__main__' or __name__ == self._name:
                 error_matrices_group1 = Parallel(n_jobs = num_cores)(delayed(clusterErrors)(group, 'resid', col_labels) for name, group in data.groupby(data.index.get_level_values(0)))
                 error_matrices_group2 = Parallel(n_jobs = num_cores)(delayed(clusterErrors)(group, 'resid', col_labels) for name, group in data.groupby(data.index.get_level_values(1)))
                 error_matrices_group12 = Parallel(n_jobs = num_cores)(delayed(clusterErrors)(group, 'resid', col_labels) for name, group in data.groupby(data.index.get_level_values(2)))
@@ -454,17 +467,6 @@ class MultiDimensionalOLS(Metrics, Transformation):
         if isinstance(self.cluster_cols, pd.Series):
             self.cluster_cols = pd.DataFrame(self.cluster_cols)
             
-        # Set groups and c
-        if self.cluster_cols.shape[1] == 1.:
-            G = float(self.cluster_cols.nunique())
-            
-        elif self.cluster_cols.shape[1] == 2.:
-            G = float(self.cluster_cols.nunique().sum())
-            
-        else:
-            raise RuntimeError('Does not support clustering on more than two levels')
-        c = np.sqrt(G / (G - 1)) 
-        
         # Set the correct data
         if self._transform_data:
             depvar = self._depvar_trans.copy()
@@ -507,7 +509,7 @@ class MultiDimensionalOLS(Metrics, Transformation):
             # Run bootstrap
             num_cores = mp.cpu_count()
             
-            if __name__ == '__main__':
+            if __name__ == '__main__' or __name__ == self._name:
                 beta_b = Parallel(n_jobs = num_cores, prefer = 'threads')(delayed(ProcedureCEB)(depvar_grouped, data_grouped) for i in range(B))
             
             # Calculate variance matrix
@@ -516,8 +518,7 @@ class MultiDimensionalOLS(Metrics, Transformation):
             
             ## Calculate cov_matrix
             cov_matrix = (1 / (B - 1)) * np.sum([(b - beta_b_bar) @ (b - beta_b_bar).T for b in beta_b], axis = 0)
-            
-            
+                        
             # Calculate std
             self.std = np.sqrt(np.diag(cov_matrix))
             
@@ -528,9 +529,7 @@ class MultiDimensionalOLS(Metrics, Transformation):
             
         else:
             raise RuntimeError('Does not support clustering on more than two levels')    
-        
-    # TODO: cluster-bootstrap variance matrix 
-    
+          
     def clusterErrorsJackknife(self):
         # TODO
         pass
@@ -570,7 +569,7 @@ class MultiDimensionalOLS(Metrics, Transformation):
         num_cores = mp.cpu_count()
         col_names = X.columns.to_numpy()
         
-        if __name__ == '__main__':
+        if __name__ == '__main__' or __name__ == self._name:
             X_res, beta_res, u_res = zip(*Parallel(n_jobs = num_cores, prefer = 'threads')(delayed(restrictedEstimations)(y, X, col) for col in col_names))
         
         # Step 2: Bootstrap procedure
@@ -613,7 +612,7 @@ class MultiDimensionalOLS(Metrics, Transformation):
             resids_grouped = resids.groupby(self.cluster_cols.iloc[:,0])
                         
             ## Enter loop B = 1000
-            if __name__ == '__main__':
+            if __name__ == '__main__' or __name__ == self._name:
                 wald_as = Parallel(n_jobs = num_cores, prefer = 'threads')(delayed(bootstrapProcedureWild)(self, y, X, var, par, resids_grouped) for i in range(B))
             
             wald_as_list.append(wald_as)
@@ -638,16 +637,31 @@ class MultiDimensionalOLS(Metrics, Transformation):
         ''' Returns a pandas DataFrame containing the estimates, stds, 
             tstats, pvals and, if available, wild_wald '''
         index = self._data.columns.to_numpy() 
-        columns = ['params','std','t','p']
-        data = np.array([self.params, self.std, self.tstat, self.pval]).T
+        columns = ['params', 'std', 't', 'p', 'nobs', 'adj_rsquared' ,'depvar_notrans_mean' ,'depvar_notrans_median', 'depvar_notrans_std','fixed effects']
+        nobs_col = [self.nobs] + [np.nan] * (index.shape[0] - 1)
+        r2_col = [self.adj_rsquared] + [np.nan] * (index.shape[0] - 1)
+        if self._transform_data:
+            depvar_mean_col = [np.exp(self._depvar_trans.mean() - 1)] + [np.nan] * (index.shape[0] - 1)
+            depvar_median_col = [np.exp(self._depvar_trans.median() - 1)] + [np.nan] * (index.shape[0] - 1)
+            depvar_std_col = [np.exp(self._depvar_trans.std())] + [np.nan] * (index.shape[0] - 1)
+        else:
+            depvar_mean_col = [np.exp(self._depvar.mean() - 1)] + [np.nan] * (index.shape[0] - 1)
+            depvar_median_col = [np.exp(self._depvar.median() - 1)] + [np.nan] * (index.shape[0] - 1)
+            depvar_std_col = [np.exp(self._depvar.std())] + [np.nan] * (index.shape[0] - 1)
+        if not(self._FE_cols is None):
+            fixed_effects = ['MSA x Year \& Lender'] + [np.nan] * (index.shape[0] - 1)
+        else:
+            fixed_effects = [np.nan] + [np.nan] * (index.shape[0] - 1)
+        
+        data = np.array([self.params, self.std, self.tstat, self.pval, nobs_col, r2_col, depvar_mean_col, depvar_median_col, depvar_std_col, fixed_effects]).T
         
         # Add the bootstrap results if available
         if self._bootstrap_residuals:
-            columns.append('wald_bootstrap')
+            columns.append('wild_waldstat')
             data.append(self.wild_wald)
         
         # Make pandas dataframe
-        df = pd.DataFrame(data = data, index = index, columns = columns)
+        df = pd.DataFrame(data = data, index = index, columns = columns)        
         
         return df
     
@@ -821,7 +835,7 @@ import os
 os.chdir(r'D:/RUG/PhD/Materials_papers/2-Working_paper_competition')
 
 # Load data and drop na
-df = pd.read_csv('Data/data_agg.csv')
+df = pd.read_csv('Data/data_agg_clean.csv')
 df.dropna(inplace = True)
 
 # Set y and X
@@ -829,22 +843,21 @@ df.dropna(inplace = True)
 y = df['log_min_distance'] 
 
 ## X
-x_list = ['ls_num', 'lti', 'ln_loanamout', 'ln_appincome', 'subprime', 'secured', \
-               'cb', 'ln_ta', 'ln_emp', 'num_branch', 'ln_pop', 'density', 'hhi', 'ln_mfi']
+x_list = ['ls_num', 'lti', 'ln_loanamout', 'ln_appincome', 'subprime', \
+               'cb', 'ln_ta', 'ln_emp', 'num_branch', 'ln_pop', 'density', 'hhi', 'ln_mfi'] #secured is only 1
 x = df[x_list]
 
 # Get the estimates
-## Fit model
-model = MultiDimensionalOLS()
-
 ## Run model
-results = model.fit(y, x, cov_type = 'clustered', cluster_cols = df.msamd, transform_data = True, FE_cols = df[['msamd','date','cert']], how = 'msamd x date, cert')
+results = MultiDimensionalOLS().fit(y, x, cov_type = 'clustered', cluster_cols = df.msamd, transform_data = True, FE_cols = df[['msamd','date','cert']], how = 'msamd x date, cert')
+results_pooled = MultiDimensionalOLS().fit(y, x, cov_type = 'clustered', cluster_cols = df.msamd)
 
 ## Save to df and write to csv file and excel
 df_results = results.to_dataframe()
+df_results_pooled = results_pooled.to_dataframe()
 
 path = r'D:/RUG/PhD/Materials_papers/2-Working_paper_competition/Results/'
-df_results.to_csv(path + 'Results_mainmodel.csv')
 df_results.to_excel(path + 'Results_mainmodel.xlsx')
+df_results_pooled.to_excel(path + 'Results_pooledmodel.xlsx')
 '''
             

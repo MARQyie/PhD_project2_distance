@@ -14,7 +14,8 @@
 
 # Set working directory
 import os
-os.chdir(r'X:/My Documents/PhD/Materials_papers/2-Working_paper_competition')
+#os.chdir(r'X:/My Documents/PhD/Materials_papers/2-Working_paper_competition')
+os.chdir(r'D:\RUG\PhD\Materials_papers\2-Working_paper_competition')
 
 # Load packages
 import pandas as pd
@@ -35,7 +36,7 @@ end = 2017
 #------------------------------------------------------------
 
 # Prelims
-path_sod = r'X:/My Documents/Data/Data_SOD/'
+path_sod = r'D:/RUG/Data/Data_SOD/'
 file_sod = r'ALL_{}.csv'
 vars_sod = ['CERT','MSABR','RSSDID','STCNTYBR','SIMS_LATITUDE','SIMS_LONGITUDE',\
             'STALPBR','BRSERTYP','UNINUMBR','DEPSUMBR']

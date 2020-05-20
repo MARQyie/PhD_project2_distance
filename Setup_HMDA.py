@@ -19,7 +19,8 @@
 
 # Set working directory
 import os
-os.chdir(r'X:/My Documents/PhD/Materials_papers/2-Working_paper_competition')
+#os.chdir(r'X:/My Documents/PhD/Materials_papers/2-Working_paper_competition')
+os.chdir(r'D:/RUG/PhD/Materials_papers/2-Working_paper_competition')
 
 # Load packages
 import pandas as pd
@@ -40,14 +41,14 @@ end = 2017
 
 # Prelims
 ## Lender File
-path_lf = r'X:/My Documents/Data/Data_HMDA_lenderfile/'
+path_lf = r'D:/RUG/Data/Data_HMDA_lenderfile/'
 file_lf = r'hmdpanel17.dta'
 vars_lf = ['hmprid'] + ['CERT{}'.format(str(year)[2:4]) for year in range(start, end +1)] \
           + ['ENTITY{}'.format(str(year)[2:4]) for year in range(start, end +1)] \
           + ['RSSD{}'.format(str(year)[2:4]) for year in range(start, end +1)]
 
 ## HMDA
-path_hmda = r'X:/My Documents/Data/Data_HMDA/LAR/'
+path_hmda = r'D:/RUG/Data/Data_HMDA/LAR/'
 file_hmda = r'hmda_{}_nationwide_originated-records_codes.zip'
 dtypes_col_hmda = {'state_code':'str', 'county_code':'str','msamd':'str',\
                    'census_tract_number':'str'}
@@ -72,7 +73,7 @@ for year in range(start,end + 1):
                          dropna(axis = 0, how = 'any', subset = ['msamd','loan_amount_000s','applicant_income_000s'])
         
         ## Make a fips column and remove separate state and county
-        chunk_filtered['fips'] = chunk_filtered['state_code'] + chunk_filtered['county_code']
+        chunk_filtered['fips'] = chunk_filtered['state_code'].str.zfill(2) + chunk_filtered['county_code'].str.zfill(3)
         chunk_filtered.drop(columns = ['state_code', 'county_code'], inplace = True)
         
         ## Make one ethnicity column and drop the originals 
