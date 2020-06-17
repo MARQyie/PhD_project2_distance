@@ -649,7 +649,12 @@ class MultiDimensionalOLS(Metrics, Transformation):
             depvar_median_col = [np.exp(self._depvar.median() - 1)] + [np.nan] * (index.shape[0] - 1)
             depvar_std_col = [np.exp(self._depvar.std())] + [np.nan] * (index.shape[0] - 1)
         if not(self._FE_cols is None):
-            fixed_effects = ['MSA x Year \& Lender'] + [np.nan] * (index.shape[0] - 1)
+            if self._FE_cols.shape[1] == 3:
+                fixed_effects = ['MSA-Year \& Lender'] + [np.nan] * (index.shape[0] - 1)
+            elif self._FE_cols.shape[1] == 2:
+                fixed_effects = ['Year \& Lender'] + [np.nan] * (index.shape[0] - 1)
+            else:
+                fixed_effects = ['Lender'] + [np.nan] * (index.shape[0] - 1)
         else:
             fixed_effects = [np.nan] + [np.nan] * (index.shape[0] - 1)
         

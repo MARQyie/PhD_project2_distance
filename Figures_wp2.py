@@ -96,18 +96,25 @@ mean_all_2017 = np.exp(df_largest_smallest[df_largest_smallest.date == pd.Timest
 def choroplethUS(df, counties, loc, color, title, text, path):
     global df_main
     
-    if color == 'log_min_distance':
+    if color == 'log_min_distance' and df.name == 'difference':
+        range_color = (df.log_min_distance.min(), df.log_min_distance.max())
+        color_continuous_scale = 'balance'
+    elif color == 'log_min_distance':
         range_color = (0, df_main.log_min_distance.max())
+        color_continuous_scale = 'Inferno'
     elif color == 'log_density':
         range_color = (0, df_main.log_density.max())
+        color_continuous_scale = 'Inferno'
     elif color == 'ls' or color == 'perc_intsub':
         range_color = (0,1)
+        color_continuous_scale = 'Inferno'
     else:
-        color = None
+        range_color = None
+        color_continuous_scale = 'Inferno'
         
     # Make the figure
     fig = px.choropleth(df, geojson = counties, locations = loc, color = color,
-                            color_continuous_scale = "inferno",
+                            color_continuous_scale = color_continuous_scale,
                             range_color = range_color,
                             scope = "usa")
     
@@ -133,6 +140,7 @@ with urlopen('https://raw.githubusercontent.com/plotly/datasets/master/geojson-c
 df_main_2010 = df_main[df_main.date == 2010][['fips', 'min_distance', 'log_min_distance','density', 'log_density','ls']].dropna()
 df_main_2010.fips = df_main_2010.fips.astype(int).astype(str).str.zfill(5)
 df_2010 = df_main_2010.groupby('fips').mean().reset_index()
+df_2010.name = np.nan
 
 # Setup prelims
 loc = 'fips'
@@ -164,6 +172,7 @@ choroplethUS(df_2010, counties = counties, loc = loc, color = color_ls, title = 
 df_main_2013 = df_main[df_main.date == 2013][['fips', 'min_distance', 'log_min_distance', 'density', 'log_density', 'ls', 'perc_intsub']].dropna()
 df_main_2013.fips = df_main_2013.fips.astype(int).astype(str).str.zfill(5)
 df_2013 = df_main_2013.groupby('fips').mean().reset_index()
+df_2013.name = np.nan
 
 # Setup prelims
 color_intsub = 'perc_intsub'
@@ -181,6 +190,7 @@ choroplethUS(df_2013, counties = counties, loc = loc, color = color_intsub, titl
 df_main_2017 = df_main[df_main.date == 2017][['fips', 'min_distance', 'log_min_distance','density', 'log_density', 'ls','perc_intsub']].dropna(subset = ['min_distance', 'log_min_distance','density', 'log_density', 'ls'])
 df_main_2017.fips = df_main_2017.fips.astype(int).astype(str).str.zfill(5)
 df_2017 = df_main_2017.groupby('fips').mean().reset_index()
+df_2017.name = np.nan
 
 # Setup prelims
 text_distance = 'Mean residential lending distance from U.S. Banks and Thrifts (2017)'
@@ -198,3 +208,45 @@ choroplethUS(df_2017, counties = counties, loc = loc, color = color_distance, ti
 choroplethUS(df_2017, counties = counties, loc = loc, color = color_density, title = title_density, text = text_density, path = path_density)
 choroplethUS(df_2017, counties = counties, loc = loc, color = color_ls, title = title_ls, text = text_ls, path = path_ls)
 choroplethUS(df_2017, counties = counties, loc = loc, color = color_intsub, title = title_intsub, text = text_intsub, path = path_intsub)
+
+#------------------------------------------------------------
+# difference 2010 -- 2017 DISTANCE ONLY
+
+# Setup data
+df_20172010 = (df_2017.set_index('fips') - df_2010.set_index('fips')).dropna(subset = ['min_distance', 'log_min_distance', 'density', 'log_density', 'ls']).reset_index()
+df_20172010.name = 'difference'
+
+# Setup prelims
+text_distance = 'Difference in mean residential lending distance from U.S. Banks and Thrifts (2010-2017)'
+
+path_distance = 'Figures/Difference_mean_lendingdistance_2017.png'  
+    
+# Make figures
+choroplethUS(df_20172010, counties = counties, loc = loc, color = color_distance, title = title_distance, text = text_distance, path = path_distance)
+
+## Make list of the counties/MSA with a decrease in lending distance and compare these with other MSAs
+df_agg_20172010 = (df_agg[df_agg.date == 2017].set_index(['cert','msamd']).log_min_distance - df_agg[df_agg.date == 2010].set_index(['cert','msamd']).log_min_distance).dropna()
+msa_negative = np.array(df_agg_20172010[df_agg_20172010 < 0].index.get_level_values(1).unique())
+
+df_agg_negative = df_agg.loc[df_agg.msamd.isin(msa_negative),['cert','msamd','date','lti', 'ln_loanamout',\
+                'ln_appincome', 'density', 'pop_area', 'cb', 'ln_ta', 'ln_emp',\
+                'num_branch', 'ln_pop_area', 'ln_num_branch', 'ln_density','perc_broadband']].set_index(['cert','msamd','date'])
+df_agg_positive = df_agg.loc[~df_agg.msamd.isin(msa_negative),['cert','msamd','date','lti', 'ln_loanamout',\
+                'ln_appincome', 'density', 'pop_area', 'cb', 'ln_ta', 'ln_emp',\
+                'num_branch', 'ln_pop_area', 'ln_num_branch', 'ln_density','perc_broadband']].set_index(['cert','msamd','date'])
+df_agg_difference = df_agg_positive.mean() - df_agg_negative.mean() ## Population density looks much greater for the negative sample: TEST
+
+### Welch's t-test for pop_area
+from scipy.stats import ttest_ind
+stat, pval = ttest_ind(df_agg_positive.ln_pop_area, \
+                           df_agg_negative.ln_pop_area, \
+                           equal_var = False, nan_policy = 'omit') #Statistically significantly different
+
+### Welch's t-test for num_branches
+stat, pval = ttest_ind(df_agg_positive.pop_area, \
+                           df_agg_negative.pop_area, \
+                           equal_var = False, nan_policy = 'omit') #Statistically significantly different
+
+## Percentage change
+perc_change = ((df_2017.set_index('fips').log_min_distance - df_2010.set_index('fips').log_min_distance) / df_2010.set_index('fips').log_min_distance).mean()
+

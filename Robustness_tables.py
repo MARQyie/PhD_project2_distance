@@ -14,18 +14,6 @@ import numpy as np
 import pandas as pd
 
 #------------------------------------------------------------
-# Load the data
-#------------------------------------------------------------
-''' OLD
-df_ols_ls = pd.read_csv('Results/Results_ols_full.csv', index_col = 0)
-df_ols_int = pd.read_csv('Results/Results_olsint_full.csv', index_col = 0)
-df_ols_lsint = pd.read_csv('Results/Results_olslsint_full.csv', index_col = 0)
-df_fe_ls_full = pd.read_csv('Results/Results_fels_full.csv', index_col = 0)
-df_fe_ls = pd.read_csv('Results/Results_fels_res.csv', index_col = 0)
-df_fe_int = pd.read_csv('Results/Results_feint_res.csv', index_col = 0)
-df_fe_lsint = pd.read_csv('Results/Results_felsint_res.csv', index_col = 0)
-'''
-#------------------------------------------------------------
 # Make functions
 #------------------------------------------------------------
 
@@ -43,7 +31,12 @@ def estimationTable(df, show = 'pval', stars = False, col_label = 'Est. Results'
     # Prelims
     ## Set dictionary for index and columns
     dictionary = {'ls_num':'Loan Sales',
+                  'ls_val':'Loan Sales (\$)',
+                  'ls_gse_num':'GSE',
+                  'ls_priv_num':'Private',
+                  'sec_num':'Securitization',
                   'perc_broadband':'Internet',
+                  'perc_noint':'No Internet',
                   'lti':'LTI',
                   'ln_loanamout':'Loan Value',
                   'ln_appincome':'Income',
@@ -114,9 +107,19 @@ def estimationTable(df, show = 'pval', stars = False, col_label = 'Est. Results'
 
     return results_df  
 
-def resultsToLatex(results, caption = '', label = ''):
+def resultsToLatex(results, caption = '', label = '', wide_table = False):
     # Prelim
-    function_parameters = dict(na_rep = '',
+    if wide_table:
+        function_parameters = dict(na_rep = '',
+                               index_names = False,
+                               column_format = 'p{2cm}' + 'p{1.0cm}' * results.shape[1],
+                               escape = False,
+                               multicolumn = True,
+                               multicolumn_format = 'c',
+                               caption = caption,
+                               label = label)
+    else:    
+        function_parameters = dict(na_rep = '',
                                index_names = False,
                                column_format = 'p{2.5cm}' + 'p{1.35cm}' * results.shape[1],
                                escape = False,
@@ -129,7 +132,7 @@ def resultsToLatex(results, caption = '', label = ''):
     return results.to_latex(**function_parameters)
 
 
-def concatResults(path_list, show = 'pval', stars = False, col_label = None, caption = '', label = ''):
+def concatResults(path_list, show = 'pval', stars = False, col_label = None, caption = '', label = '', wide_table = False):
     '''Calls estimationTable and returns a concatenated table '''
     
     list_of_results = []
@@ -157,7 +160,7 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
         results.columns = pd.MultiIndex.from_arrays([col_names[:,0], col_names[:,1]], names = ['Method','Number'])
     
     # To latex
-    results_latex = resultsToLatex(results, caption, label)
+    results_latex = resultsToLatex(results, caption, label, wide_table)
     
     ## Add table placement
     location = results_latex.find('\begin{table}\n')
@@ -187,37 +190,57 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
 #------------------------------------------------------------
     
 # Set path list
-path_list_ols = ['Results/Results_ols_ls_full.csv', 'Results/Results_ols_ls_res.csv',\
-                 'Results/Results_ols_int_res.csv', 'Results/Results_ols_lsint_res.csv']
-path_list_fe = ['Results/Results_fe_msatcert_ls_full.csv', 'Results/Results_fe_msatcert_ls_res.csv',\
-                'Results/Results_fe_tcert_ls_full.csv', 'Results/Results_fe_tcert_ls_res.csv',\
-                'Results/Results_fe_tcert_int_res.csv', 'Results/Results_fe_tcert_lsint_res.csv'  ]  
+path_list_cdd = ['Robustness_checks/Robust_{}.csv'.format(i) for i in range(1,10+1)]
+path_list_lsval = ['Robustness_checks/Robust_{}.csv'.format(i) for i in range(10+1, 18+1)]
+path_list_lssplit = ['Robustness_checks/Robust_{}.csv'.format(i) for i in range(18+1,26+1)]
+path_list_noint = ['Robustness_checks/Robust_{}.csv'.format(i) for i in range(26+1,30+1)]   
 
-col_label_ols = ['({})'.format(i) for i in range(1,len(path_list_ols) + 1)]
-col_label_fe = ['({})'.format(i) for i in range(1,len(path_list_fe) + 1)]
+col_label_cdd = ['({})'.format(i) for i in range(1,len(path_list_cdd) + 1)]
+col_label_lsval = ['({})'.format(i) for i in range(1,len(path_list_lsval) + 1)]
+col_label_lssplit = ['({})'.format(i) for i in range(1,len(path_list_lssplit) + 1)]
+col_label_noint = ['({})'.format(i) for i in range(1,len(path_list_noint) + 1)]
 
 # Set title and label
-caption_ols = 'Estimation Results Pooled OLS'
-label_ols = 'tab:main_results_ols'
-caption_fe = 'Estimation Results Fixed Effects'
-label_fe = 'tab:main_results_fe'
+caption_cdd = 'Robustness check: CDD Distance'
+label_cdd = 'tab:robust_1'
+caption_lsval = 'Robustness check: Loan Sales (\$ amount)'
+label_lsval = 'tab:robust_2'
+caption_lssplit = 'Robustness check: Split Loan Sales'
+label_lssplit = 'tab:robust_3'
+caption_noint = 'Robustness check: No Internet Subscription'
+label_noint = 'tab:robust_4'
 
 # Call function
-df_results_ols, latex_results_ols = concatResults(path_list_ols, col_label = col_label_ols,\
-                                                  caption = caption_ols, label = label_ols)
-df_results_fe, latex_results_fe = concatResults(path_list_fe, col_label = col_label_fe,\
-                                                caption = caption_fe, label = label_fe)
+df_results_cdd, latex_results_cdd = concatResults(path_list_cdd, col_label = col_label_cdd,\
+                                                  caption = caption_cdd, label = label_cdd, wide_table = True)
+df_results_lsval, latex_results_lsval = concatResults(path_list_lsval, col_label = col_label_lsval,\
+                                                caption = caption_lsval, label = label_lsval, wide_table = True)
+df_results_lssplit, latex_results_lssplit = concatResults(path_list_lssplit, col_label = col_label_lssplit,\
+                                                  caption = caption_lssplit, label = label_lssplit, wide_table = True)
+df_results_noint, latex_results_noint = concatResults(path_list_noint, col_label = col_label_noint,\
+                                                caption = caption_noint, label = label_noint, wide_table = False)
 
 #------------------------------------------------------------
 # Save df and latex file
 #------------------------------------------------------------
 
-df_results_ols.to_csv('Results/Results_main_ols.csv')
-df_results_fe.to_csv('Results/Results_main_fe.csv')
+df_results_cdd.to_csv('Robustness_checks/Robust_df_1.csv')
+df_results_lsval.to_csv('Robustness_checks/Robust_df_2.csv')
+df_results_lssplit.to_csv('Robustness_checks/Robust_df_3.csv')
+df_results_noint.to_csv('Robustness_checks/Robust_df_4.csv')
 
-text_file_latex_results = open('Results/Results_main_ols.tex', 'w')
-text_file_latex_results.write(latex_results_ols)
+text_file_latex_results = open('Robustness_checks/Robust_latex_1.tex', 'w')
+text_file_latex_results.write(latex_results_cdd)
 text_file_latex_results.close()
-text_file_latex_results = open('Results/Results_main_fe.tex', 'w')
-text_file_latex_results.write(latex_results_fe)
+
+text_file_latex_results = open('Robustness_checks/Robust_latex_2.tex', 'w')
+text_file_latex_results.write(latex_results_lsval)
+text_file_latex_results.close()
+
+text_file_latex_results = open('Robustness_checks/Robust_latex_3.tex', 'w')
+text_file_latex_results.write(latex_results_lssplit)
+text_file_latex_results.close()
+
+text_file_latex_results = open('Robustness_checks/Robust_latex_4.tex', 'w')
+text_file_latex_results.write(latex_results_noint)
 text_file_latex_results.close()
