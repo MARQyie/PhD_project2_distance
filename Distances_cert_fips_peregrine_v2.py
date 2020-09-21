@@ -18,8 +18,8 @@
 # Set working directory
 
 import os
-os.chdir(r'/data/p285325/WP2_distance/')
-#os.chdir(r'D:/RUG/PhD/Materials_papers/2-Working_paper_competition/Data')
+#os.chdir(r'/data/p285325/WP2_distance/')
+os.chdir(r'D:/RUG/PhD/Materials_papers/2-Working_paper_competition/Data')
 
 # Load packages
 import numpy as np
@@ -32,7 +32,7 @@ from joblib import Parallel, delayed # For parallelization
 #------------------------------------------------------------
 
 start = 2010
-end = 2017
+end = 2019
 #num_cores = mp.cpu_count()
 num_cores = -1
 
@@ -53,10 +53,14 @@ def readHMDA(year):
 def mergeSDILF(year):
        
     ## Merge on year
-    df_load = df_sdi[df_sdi.date == year].merge(df_lf,\
+    if year < 2018:
+        df_load = df_sdi[df_sdi.date == year].merge(df_lf,\
                             how = 'left', left_on = 'cert',\
                             right_on = 'CERT{}'.format(str(year)[2:4]))
-    
+    else:
+        df_load = df_sdi[df_sdi.date == year].merge(df_lf,\
+                            how = 'left', left_on = 'cert',\
+                            right_on = 'CERT{}'.format(str(17)))    
     
     ## Return concatenated pd DataFrame
     return (df_load)
@@ -106,7 +110,7 @@ df_sdi = pd.read_csv('df_sdi_wp2.csv', usecols = ['date','cert'])
 
 # df LF
 ## Prelims
-vars_lf = ['hmprid'] + ['CERT{}'.format(str(year)[2:4]) for year in range(start, end +1)]
+vars_lf = ['hmprid'] + ['CERT{}'.format(str(year)[2:4]) for year in range(start, end - 1)]
 
 ## Load df LF
 df_lf = pd.read_csv('hmdpanel17.csv', usecols = vars_lf)

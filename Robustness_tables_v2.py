@@ -14,18 +14,6 @@ import numpy as np
 import pandas as pd
 
 #------------------------------------------------------------
-# Load the data
-#------------------------------------------------------------
-''' OLD
-df_ols_ls = pd.read_csv('Results/Results_ols_full.csv', index_col = 0)
-df_ols_int = pd.read_csv('Results/Results_olsint_full.csv', index_col = 0)
-df_ols_lsint = pd.read_csv('Results/Results_olslsint_full.csv', index_col = 0)
-df_fe_ls_full = pd.read_csv('Results/Results_fels_full.csv', index_col = 0)
-df_fe_ls = pd.read_csv('Results/Results_fels_res.csv', index_col = 0)
-df_fe_int = pd.read_csv('Results/Results_feint_res.csv', index_col = 0)
-df_fe_lsint = pd.read_csv('Results/Results_felsint_res.csv', index_col = 0)
-'''
-#------------------------------------------------------------
 # Make functions
 #------------------------------------------------------------
 
@@ -43,7 +31,12 @@ def estimationTable(df, show = 'pval', stars = False, col_label = 'Est. Results'
     # Prelims
     ## Set dictionary for index and columns
     dictionary = {'ls_num':'Loan Sales',
+                  'ls_val':'Loan Sales (\$)',
+                  'ls_gse_num':'LS GSE',
+                  'ls_priv_num':'LS Private',
+                  'sec_num':'Securitization',
                   'perc_broadband':'Internet',
+                  'perc_noint':'No Internet',
                   'lti':'LTI',
                   'ln_loanamout':'Loan Value',
                   'ln_appincome':'Income',
@@ -115,11 +108,21 @@ def estimationTable(df, show = 'pval', stars = False, col_label = 'Est. Results'
 
     return results_df  
 
-def resultsToLatex(results, caption = '', label = ''):
+def resultsToLatex(results, caption = '', label = '', wide_table = False):
     # Prelim
-    function_parameters = dict(na_rep = '',
+    if wide_table:
+        function_parameters = dict(na_rep = '',
                                index_names = False,
-                               column_format = 'p{2.5cm}' + 'p{1.35cm}' * results.shape[1],
+                               column_format = 'p{2cm}' + 'p{1.0cm}' * results.shape[1],
+                               escape = False,
+                               multicolumn = True,
+                               multicolumn_format = 'c',
+                               caption = caption,
+                               label = label)
+    else:    
+        function_parameters = dict(na_rep = '',
+                               index_names = False,
+                               column_format = 'p{2.5cm}' + 'p{1.5cm}' * results.shape[1],
                                escape = False,
                                multicolumn = True,
                                multicolumn_format = 'c',
@@ -130,7 +133,7 @@ def resultsToLatex(results, caption = '', label = ''):
     return results.to_latex(**function_parameters)
 
 
-def concatResults(path_list, show = 'pval', stars = False, col_label = None, caption = '', label = ''):
+def concatResults(path_list, show = 'pval', stars = False, col_label = None, caption = '', label = '', wide_table = False):
     '''Calls estimationTable and returns a concatenated table '''
     
     list_of_results = []
@@ -146,7 +149,14 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
     results = pd.concat(list_of_results, axis = 1)
     
     # Order results
-    results = results.loc[list_of_results[-1].index.to_numpy(),:]
+    ## Get column indexes that are not in fist column and insert in index column 0
+    missing_cols = [var for i in range(len(list_of_results)-3,-1,-1) for var in list_of_results[i+1].index if var not in list_of_results[0].index]
+    target_cols = list_of_results[0].index.tolist()
+    for i in range(len(missing_cols)):
+        target_cols.insert(i + 2, missing_cols[i])
+    
+    # order results    
+    results = results.loc[target_cols,:]
 
     # Rename index
     results.index = [result if not show in result else '' for result in results.index]
@@ -158,14 +168,14 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
         results.columns = pd.MultiIndex.from_arrays([col_names[:,0], col_names[:,1]], names = ['Method','Number'])
     
     # To latex
-    results_latex = resultsToLatex(results, caption, label)
+    results_latex = resultsToLatex(results, caption, label, wide_table)
     
     ## Add table placement
     location = results_latex.find('\begin{table}\n')
     results_latex = results_latex[:location + len('\begin{table}\n') + 1] + '[th!]' + results_latex[location + len('\begin{table}\n') + 1:]
     
     ## Make the font size of the table footnotesize
-    size_string = '\\scriptsize \n'
+    size_string = '\\tiny \n'
     location = results_latex.find('\centering\n')
     results_latex = results_latex[:location + len('\centering\n')] + size_string + results_latex[location + len('\centering\n'):]
     
@@ -176,11 +186,11 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
     
     ## Add note to the table
     # TODO: Add std, tval and stars option
-    note_string = '\\\\\scriptsize{\\textit{Notes.} P-value in parentheses. All models are estimated with clustered standard errors on the MSA-level}\n'
+    note_string = '\justify\n\\scriptsize{\\textit{Notes.} P-value in parentheses. All models are estimated with clustered standard errors on the MSA-level. Model (5) is estimated with an intercept. }\n'
     location = results_latex.find('\end{tabular}\n')
     results_latex = results_latex[:location + len('\end{tabular}\n')] + note_string + results_latex[location + len('\end{tabular}\n'):]
     
-    return results,results_latex
+    return results, results_latex
     
 
 #------------------------------------------------------------
@@ -188,37 +198,26 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
 #------------------------------------------------------------
     
 # Set path list
-path_list_ols = ['Results/Results_ols_ls_full.csv', 'Results/Results_ols_ls_res.csv',\
-                 'Results/Results_ols_int_res.csv', 'Results/Results_ols_lsint_res.csv']
-path_list_fe = ['Results/Results_fe_msatcert_ls_full.csv', 'Results/Results_fe_msatcert_ls_res.csv',\
-                'Results/Results_fe_tcert_ls_full.csv', 'Results/Results_fe_tcert_ls_res.csv',\
-                'Results/Results_fe_tcert_int_res.csv', 'Results/Results_fe_tcert_lsint_res.csv'  ]  
+path_list = ['Robustness_checks/Robust_{}.csv'.format(i) for i in range(1,5+1)]
 
-col_label_ols = ['({})'.format(i) for i in range(1,len(path_list_ols) + 1)]
-col_label_fe = ['({})'.format(i) for i in range(1,len(path_list_fe) + 1)]
+# Set column labels
+col_label = ['({})'.format(i) for i in range(1,len(path_list) + 1)]
 
 # Set title and label
-caption_ols = 'Estimation Results Pooled OLS'
-label_ols = 'tab:main_results_ols'
-caption_fe = 'Estimation Results Fixed Effects'
-label_fe = 'tab:main_results_fe'
+caption = 'Robustness checks'
+label = 'tab:robust'
 
 # Call function
-df_results_ols, latex_results_ols = concatResults(path_list_ols, col_label = col_label_ols,\
-                                                  caption = caption_ols, label = label_ols)
-df_results_fe, latex_results_fe = concatResults(path_list_fe, col_label = col_label_fe,\
-                                                caption = caption_fe, label = label_fe)
+df_results, latex_results = concatResults(path_list, col_label = col_label,\
+                                                  caption = caption, label = label, wide_table = False)
 
 #------------------------------------------------------------
 # Save df and latex file
 #------------------------------------------------------------
 
-df_results_ols.to_csv('Results/Results_main_ols.csv')
-df_results_fe.to_csv('Results/Results_main_fe.csv')
+df_results.to_csv('Robustness_checks/Robust_df.csv')
 
-text_file_latex_results = open('Results/Results_main_ols.tex', 'w')
-text_file_latex_results.write(latex_results_ols)
+text_file_latex_results = open('Robustness_checks/Robust_latex.tex', 'w')
+text_file_latex_results.write(latex_results)
 text_file_latex_results.close()
-text_file_latex_results = open('Results/Results_main_fe.tex', 'w')
-text_file_latex_results.write(latex_results_fe)
-text_file_latex_results.close()
+

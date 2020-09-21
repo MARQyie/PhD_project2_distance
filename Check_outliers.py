@@ -31,7 +31,7 @@ columns = ['cert', 'msamd', 'fips', 'date', \
            'secured', 'ls', 'ls_gse', 'ls_priv', 'sec', 'min_distance',\
            'min_distance_cdd', 'log_min_distance', 'log_min_distance_cdd',\
            'ln_mfi', 'hhi', 'density', 'pop_area']
-df_main = pd.read_csv('Data/data_main.csv', usecols = columns)
+#df_main = pd.read_csv('Data/data_main.csv', usecols = columns)
 
 #------------------------------------------------------------
 # Make boxplots
@@ -71,7 +71,7 @@ if __name__ == '__main__':
 '''    
 #------------------------------------------------------------
 # df_main
-
+'''
 ## Make function to parallelize
 def boxPlotsMain(var):
     global df_main
@@ -87,7 +87,8 @@ def boxPlotsMain(var):
     plt.clf() 
     
 # Run
-vars_needed_main = [val for val in df_main.columns.tolist() if val not in ['date', 'cert', 'msamd']]    
+vars_needed_main = [val for val in df_main.columns.tolist() if val not in ['date', 'cert', 'msamd']] 
+'''   
 '''   
 if __name__ == '__main__':
     Parallel(n_jobs = num_cores)(delayed(boxPlotsMain)(var) for var in vars_needed_main)
@@ -100,13 +101,16 @@ if __name__ == '__main__':
 '''NOTE
     The boxplots show that total employees has some zero values. 
     This is improbable and thus we remove those and save a cleaned df.'''
-    
-df_cleaned = df[df.ln_emp != 0.0]
 
+# limit vars    
+df_cleaned = df[df.ln_emp != 0.0]
+df_cleaned = df_cleaned[df_cleaned.lti < np.inf]    
+df_cleaned = df_cleaned[df_cleaned.ln_appincome > -np.inf]
+ 
 # Add log of pop / area + num_branches
 df_cleaned['ln_pop_area'] = np.log(df_cleaned.pop_area + 1)
 df_cleaned['ln_num_branch'] = np.log(df_cleaned.num_branch + 1)
-df_cleaned['ln_density'] = np.log(df_cleaned.density + 1)
+df_cleaned['ln_density'] = np.log(df_cleaned.density * 1e3 + 1)
 
 # Check describe
 df_desc = df_cleaned.describe()

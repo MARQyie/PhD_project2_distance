@@ -22,10 +22,9 @@ df = pd.read_csv('Data/data_agg_clean.csv')
 #------------------------------------------------------------
 
 # prelims
-vars_needed = ['log_min_distance', 'log_min_distance_cdd','ls_num', 'perc_broadband',\
+vars_needed = ['log_min_distance', 'log_min_distance_cdd','ls_num', \
                'lti', 'ln_loanamout', 'ln_appincome', 'subprime', 'ln_ta', 'ln_emp',\
-               'ln_num_branch', 'cb', 'ln_density', 'ln_pop_area', 'ln_mfi', 'hhi']
-
+               'ln_num_branch', 'cb', 'perc_broadband', 'ln_density', 'ln_pop_area', 'ln_mfi', 'hhi']
 # Subset dfs
 df_full = df[vars_needed]
 df_reduced = df.loc[df.date >= 2013, vars_needed]
@@ -41,9 +40,9 @@ corr_reduced = df_reduced.corr(method = 'spearman').round(decimals = 4)
 # Layout correlation matrices
 #------------------------------------------------------------
 # Change column and index corr matrices
-col_names = ['Distance (pop. weighted)', 'Distance (CDD)','Loan Sales', 'Internet',\
+col_names = ['Distance (pop. weighted)', 'Distance (CDD)','Loan Sales',\
                'LTI', 'Loan Value', 'Income', 'Subprime', 'Size', 'Employees',\
-               'Branches', 'Bank', 'Density', 'Population', 'MFI', 'HHI']
+               'Branches', 'Bank',  'Internet', 'Density', 'Population', 'MFI', 'HHI']
 
 corr_full.columns = col_names
 corr_full.index = col_names

@@ -60,7 +60,8 @@ def estimationTable(df, show = 'pval', stars = False, col_label = 'Est. Results'
                   'depvar_notrans_std':'Depvar SD',
                   'fixed effects':'FE',
                   'msamd':'MSAs/MDs',
-                  'cert':'Lenders'}
+                  'cert':'Lenders',
+                  'intercept':'Intercept'}
     
     # Get parameter column and secondary columns (std, tval, pval)
     params = df.params.round(4)
@@ -164,7 +165,7 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
     
     ## Add table placement
     location = results_latex.find('\begin{table}\n')
-    results_latex = results_latex[:location + len('\begin{table}\n') + 1] + '[th]' + results_latex[location + len('\begin{table}\n') + 1:]
+    results_latex = results_latex[:location + len('\begin{table}\n') + 1] + '[th!]' + results_latex[location + len('\begin{table}\n') + 1:]
     
     ## Make the font size of the table footnotesize
     size_string = '\\scriptsize \n'

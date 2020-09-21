@@ -14,18 +14,6 @@ import numpy as np
 import pandas as pd
 
 #------------------------------------------------------------
-# Load the data
-#------------------------------------------------------------
-''' OLD
-df_ols_ls = pd.read_csv('Results/Results_ols_full.csv', index_col = 0)
-df_ols_int = pd.read_csv('Results/Results_olsint_full.csv', index_col = 0)
-df_ols_lsint = pd.read_csv('Results/Results_olslsint_full.csv', index_col = 0)
-df_fe_ls_full = pd.read_csv('Results/Results_fels_full.csv', index_col = 0)
-df_fe_ls = pd.read_csv('Results/Results_fels_res.csv', index_col = 0)
-df_fe_int = pd.read_csv('Results/Results_feint_res.csv', index_col = 0)
-df_fe_lsint = pd.read_csv('Results/Results_felsint_res.csv', index_col = 0)
-'''
-#------------------------------------------------------------
 # Make functions
 #------------------------------------------------------------
 
@@ -119,7 +107,7 @@ def resultsToLatex(results, caption = '', label = ''):
     # Prelim
     function_parameters = dict(na_rep = '',
                                index_names = False,
-                               column_format = 'p{2.5cm}' + 'p{1.35cm}' * results.shape[1],
+                               column_format = 'p{2.5cm}' + 'p{1.5cm}' * results.shape[1],
                                escape = False,
                                multicolumn = True,
                                multicolumn_format = 'c',
@@ -176,7 +164,7 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
     
     ## Add note to the table
     # TODO: Add std, tval and stars option
-    note_string = '\\\\\scriptsize{\\textit{Notes.} P-value in parentheses. All models are estimated with clustered standard errors on the MSA-level}\n'
+    note_string = '\justify\n\\scriptsize{\\textit{Notes.} P-value in parentheses. LTI = loan-to-income ratio. The model is estimated with clustered standard errors on the MSA-level.}\n'
     location = results_latex.find('\end{tabular}\n')
     results_latex = results_latex[:location + len('\end{tabular}\n')] + note_string + results_latex[location + len('\end{tabular}\n'):]
     
@@ -188,37 +176,24 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
 #------------------------------------------------------------
     
 # Set path list
-path_list_ols = ['Results/Results_ols_ls_full.csv', 'Results/Results_ols_ls_res.csv',\
-                 'Results/Results_ols_int_res.csv', 'Results/Results_ols_lsint_res.csv']
-path_list_fe = ['Results/Results_fe_msatcert_ls_full.csv', 'Results/Results_fe_msatcert_ls_res.csv',\
-                'Results/Results_fe_tcert_ls_full.csv', 'Results/Results_fe_tcert_ls_res.csv',\
-                'Results/Results_fe_tcert_int_res.csv', 'Results/Results_fe_tcert_lsint_res.csv'  ]  
+path_list = ['Results/Benchmark_results.csv']
 
-col_label_ols = ['({})'.format(i) for i in range(1,len(path_list_ols) + 1)]
-col_label_fe = ['({})'.format(i) for i in range(1,len(path_list_fe) + 1)]
+col_label = ['({})'.format(i) for i in range(1,len(path_list) + 1)]
 
 # Set title and label
-caption_ols = 'Estimation Results Pooled OLS'
-label_ols = 'tab:main_results_ols'
-caption_fe = 'Estimation Results Fixed Effects'
-label_fe = 'tab:main_results_fe'
+caption = 'Estimation Results Benchmark Model'
+label = 'tab:results_benchmark'
 
 # Call function
-df_results_ols, latex_results_ols = concatResults(path_list_ols, col_label = col_label_ols,\
-                                                  caption = caption_ols, label = label_ols)
-df_results_fe, latex_results_fe = concatResults(path_list_fe, col_label = col_label_fe,\
-                                                caption = caption_fe, label = label_fe)
+df_results, latex_results = concatResults(path_list, col_label = col_label,\
+                                                  caption = caption, label = label)
 
 #------------------------------------------------------------
 # Save df and latex file
 #------------------------------------------------------------
 
-df_results_ols.to_csv('Results/Results_main_ols.csv')
-df_results_fe.to_csv('Results/Results_main_fe.csv')
+df_results.to_csv('Results/Table_results_benchmark.csv')
 
-text_file_latex_results = open('Results/Results_main_ols.tex', 'w')
-text_file_latex_results.write(latex_results_ols)
-text_file_latex_results.close()
-text_file_latex_results = open('Results/Results_main_fe.tex', 'w')
-text_file_latex_results.write(latex_results_fe)
+text_file_latex_results = open('Results/Table_results_benchmark.tex', 'w')
+text_file_latex_results.write(latex_results)
 text_file_latex_results.close()

@@ -30,7 +30,7 @@ sns.set(style = 'whitegrid', font_scale = 1.75, palette = 'Greys_d')
 #------------------------------------------------------------
 
 start = 2010
-end = 2017
+end = 2019
 
 #------------------------------------------------------------
 # Load the data 
@@ -48,7 +48,7 @@ usecols_from2016 = ['GEO_ID', 'NAME', 'B28002_001E', 'B28002_002E','B28002_003E'
 
 
 list_df_int = []
-for year in range(start + 3, end + 1):
+for year in range(start + 3, end):
     if year < 2016:
         df_int_load =  pd.read_csv(path_int + file_int.format(year), skiprows = [1], usecols = usecols)
         df_int_load['broadband_load'] = df_int_load[['B28002_007E', 'B28002_010E', 'B28002_013E', 'B28002_016E']].sum(axis = 1)
@@ -85,7 +85,7 @@ df_pop = df_pop[df_pop.COUNTY != 0]
 df_pop['fips'] = df_pop.STATE.astype(str).str.zfill(2) + df_pop.COUNTY.astype(str).str.zfill(3)
 df_pop.drop(columns = ['STATE', 'COUNTY'], inplace = True)
 
-# Reshape the 
+# Reshape the data
 df_pop.set_index('fips', inplace = True)
 df_pop_res = df_pop.stack().reset_index()
 df_pop_res.rename(columns = {'level_1':'date', 0:'population'}, inplace = True)
@@ -134,7 +134,7 @@ df_area['area'] = df_area.AREALAND.divide(1e6)
 # Correct population with area
 df_pop_area = df_pop_res.merge(df_area[['GEOID', 'area']], how = 'inner', left_on = 'fips', right_on = 'GEOID')
 df_pop_area['pop_area'] = df_pop_area['population'] / df_pop_area['area']
-df_pop_area.drop(columns = ['population', 'GEOID', 'area'], inplace = True)
+df_pop_area.drop(columns = ['GEOID', 'area'], inplace = True)
 
 #------------------------------------------------------------
 # Save dfs

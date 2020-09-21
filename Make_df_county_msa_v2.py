@@ -80,7 +80,7 @@ df_msa2018 = pd.read_excel(path_msa + 'msa_2018.xls', header = 2, names = col_na
 # Add date to df_centers and make a new df
 list_df_center = []
 
-for year in range(10,18+1):  
+for year in range(10,19+1):  
     list_df_center.append(pd.concat([df_centers, pd.DataFrame(['20{}'.format(year)] * df_centers.shape[0],\
                                                               columns = ['date'])], axis = 1, join = 'inner'))
     
@@ -89,7 +89,7 @@ df_centers_panel = pd.concat(list_df_center)
 # Make a panel from the msa dfs
 list_df_msa = []
 
-for year in range(10,18+1):
+for year in range(10,19+1):
     if np.isin(year,[10,11,12]):
         list_df_msa.append(pd.concat([df_msa2009, pd.DataFrame(['20{}'.format(year)] * df_msa2009.shape[0],\
                                                               columns = ['date'])], axis = 1, join = 'inner'))

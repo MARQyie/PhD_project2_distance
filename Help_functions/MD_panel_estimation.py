@@ -336,7 +336,8 @@ class MultiDimensionalOLS(Metrics, Transformation):
             xtx_inv = np.linalg.inv(xtx)
         cov_matrix = np.dot(sigma, xtx_inv)
         self.std = np.sqrt(np.diag(cov_matrix))
-        return self.std
+        self.cov = cov_matrix
+        return self
     
     def clusteredSTD(self, wild = False):
         ''' Returns an array of clustered standard errors based on the columns 
@@ -457,7 +458,8 @@ class MultiDimensionalOLS(Metrics, Transformation):
         
         # Calculate the standard errors and return
         self.std = np.sqrt(np.diag(cov_matrix))
-        return self.std
+        self.cov = cov_matrix
+        return self
     
     def clusterErrorsBootstrap(self, B = 1000):
         ''' Uses a boostrap procedure to estimate a cluster robust variance matrix.
@@ -641,13 +643,13 @@ class MultiDimensionalOLS(Metrics, Transformation):
         nobs_col = [self.nobs] + [np.nan] * (index.shape[0] - 1)
         r2_col = [self.adj_rsquared] + [np.nan] * (index.shape[0] - 1)
         if self._transform_data:
-            depvar_mean_col = [np.exp(self._depvar_trans.mean() - 1)] + [np.nan] * (index.shape[0] - 1)
-            depvar_median_col = [np.exp(self._depvar_trans.median() - 1)] + [np.nan] * (index.shape[0] - 1)
-            depvar_std_col = [np.exp(self._depvar_trans.std())] + [np.nan] * (index.shape[0] - 1)
+            depvar_mean_col = [self._depvar_trans.mean()] + [np.nan] * (index.shape[0] - 1)
+            depvar_median_col = [self._depvar_trans.median()] + [np.nan] * (index.shape[0] - 1)
+            depvar_std_col = [self._depvar_trans.std()] + [np.nan] * (index.shape[0] - 1)
         else:
-            depvar_mean_col = [np.exp(self._depvar.mean() - 1)] + [np.nan] * (index.shape[0] - 1)
-            depvar_median_col = [np.exp(self._depvar.median() - 1)] + [np.nan] * (index.shape[0] - 1)
-            depvar_std_col = [np.exp(self._depvar.std())] + [np.nan] * (index.shape[0] - 1)
+            depvar_mean_col = [self._depvar.mean()] + [np.nan] * (index.shape[0] - 1)
+            depvar_median_col = [self._depvar.median()] + [np.nan] * (index.shape[0] - 1)
+            depvar_std_col = [self._depvar.std()] + [np.nan] * (index.shape[0] - 1)
         if not(self._FE_cols is None):
             if self._FE_cols.shape[1] == 3:
                 fixed_effects = ['MSA-Year \& Lender'] + [np.nan] * (index.shape[0] - 1)

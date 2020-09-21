@@ -84,9 +84,9 @@ plt.show()
 
 fig.savefig('Figures\Fig_meandistance_over_time.png')
 
-# calculate average distance in 2010 and 2017 resp.
+# calculate average distance in 2010 and 2019 resp.
 mean_all_2010 = np.exp(df_largest_smallest[df_largest_smallest.date == pd.Timestamp(2010,1,1)].log_min_distance.mean() - 1)
-mean_all_2017 = np.exp(df_largest_smallest[df_largest_smallest.date == pd.Timestamp(2017,1,1)].log_min_distance.mean() - 1)
+mean_all_2019 = np.exp(df_largest_smallest[df_largest_smallest.date == pd.Timestamp(2019,1,1)].log_min_distance.mean() - 1)
 
 #------------------------------------------------------------
 # Geo Choropleth
@@ -187,46 +187,46 @@ choroplethUS(df_2013, counties = counties, loc = loc, color = color_intsub, titl
 # 2017
 
 # Setup data
-df_main_2017 = df_main[df_main.date == 2017][['fips', 'min_distance', 'log_min_distance','density', 'log_density', 'ls','perc_intsub']].dropna(subset = ['min_distance', 'log_min_distance','density', 'log_density', 'ls'])
-df_main_2017.fips = df_main_2017.fips.astype(int).astype(str).str.zfill(5)
-df_2017 = df_main_2017.groupby('fips').mean().reset_index()
-df_2017.name = np.nan
+df_main_2019 = df_main[df_main.date == 2019][['fips', 'min_distance', 'log_min_distance','density', 'log_density', 'ls']].dropna(subset = ['min_distance', 'log_min_distance','density', 'log_density', 'ls'])
+df_main_2019.fips = df_main_2019.fips.astype(int).astype(str).str.zfill(5)
+df_2019 = df_main_2019.groupby('fips').mean().reset_index()
+df_2019.name = np.nan
 
 # Setup prelims
-text_distance = 'Mean residential lending distance from U.S. Banks and Thrifts (2017)'
-text_density = 'Number of Branches U.S. Banks and Thrifts (2017)'
-text_ls = 'Percentage of loan sold in the U.S. (2017)'
-text_intsub = 'Percentage of internet subscriptions in the U.S. (2017)'
+text_distance = 'Mean residential lending distance from U.S. Banks and Thrifts (2019)'
+text_density = 'Number of Branches U.S. Banks and Thrifts (2019)'
+text_ls = 'Percentage of loan sold in the U.S. (2019)'
+text_intsub = 'Percentage of internet subscriptions in the U.S. (2019)'
 
-path_distance = 'Figures/Mean_lendingdistance_2017.png'  
-path_density = 'Figures/Mean_density_2017.png' 
-path_ls = 'Figures/Mean_ls_2017.png'
+path_distance = 'Figures/Mean_lendingdistance_2019.png'  
+path_density = 'Figures/Mean_density_2019.png' 
+path_ls = 'Figures/Mean_ls_2019.png'
 path_intsub = 'Figures/Mean_intsub_2017.png'
     
 # Make figures
-choroplethUS(df_2017, counties = counties, loc = loc, color = color_distance, title = title_distance, text = text_distance, path = path_distance)
-choroplethUS(df_2017, counties = counties, loc = loc, color = color_density, title = title_density, text = text_density, path = path_density)
-choroplethUS(df_2017, counties = counties, loc = loc, color = color_ls, title = title_ls, text = text_ls, path = path_ls)
-choroplethUS(df_2017, counties = counties, loc = loc, color = color_intsub, title = title_intsub, text = text_intsub, path = path_intsub)
+choroplethUS(df_2019, counties = counties, loc = loc, color = color_distance, title = title_distance, text = text_distance, path = path_distance)
+choroplethUS(df_2019, counties = counties, loc = loc, color = color_density, title = title_density, text = text_density, path = path_density)
+choroplethUS(df_2019, counties = counties, loc = loc, color = color_ls, title = title_ls, text = text_ls, path = path_ls)
+#choroplethUS(df_2019, counties = counties, loc = loc, color = color_intsub, title = title_intsub, text = text_intsub, path = path_intsub)
 
 #------------------------------------------------------------
-# difference 2010 -- 2017 DISTANCE ONLY
+# difference 2010 -- 2019 DISTANCE ONLY
 
 # Setup data
-df_20172010 = (df_2017.set_index('fips') - df_2010.set_index('fips')).dropna(subset = ['min_distance', 'log_min_distance', 'density', 'log_density', 'ls']).reset_index()
-df_20172010.name = 'difference'
+df_20192010 = (df_2019.set_index('fips') - df_2010.set_index('fips')).dropna(subset = ['min_distance', 'log_min_distance', 'density', 'log_density', 'ls']).reset_index()
+df_20192010.name = 'difference'
 
 # Setup prelims
-text_distance = 'Difference in mean residential lending distance from U.S. Banks and Thrifts (2010-2017)'
+text_distance = 'Difference in mean residential lending distance from U.S. Banks and Thrifts (2010-2019)'
 
-path_distance = 'Figures/Difference_mean_lendingdistance_2017.png'  
+path_distance = 'Figures/Difference_mean_lendingdistance_2019.png'  
     
 # Make figures
-choroplethUS(df_20172010, counties = counties, loc = loc, color = color_distance, title = title_distance, text = text_distance, path = path_distance)
+choroplethUS(df_20192010, counties = counties, loc = loc, color = color_distance, title = title_distance, text = text_distance, path = path_distance)
 
 ## Make list of the counties/MSA with a decrease in lending distance and compare these with other MSAs
-df_agg_20172010 = (df_agg[df_agg.date == 2017].set_index(['cert','msamd']).log_min_distance - df_agg[df_agg.date == 2010].set_index(['cert','msamd']).log_min_distance).dropna()
-msa_negative = np.array(df_agg_20172010[df_agg_20172010 < 0].index.get_level_values(1).unique())
+df_agg_20192010 = (df_agg[df_agg.date == 2019].set_index(['cert','msamd']).log_min_distance - df_agg[df_agg.date == 2010].set_index(['cert','msamd']).log_min_distance).dropna()
+msa_negative = np.array(df_agg_20192010[df_agg_20192010 < 0].index.get_level_values(1).unique())
 
 df_agg_negative = df_agg.loc[df_agg.msamd.isin(msa_negative),['cert','msamd','date','lti', 'ln_loanamout',\
                 'ln_appincome', 'density', 'pop_area', 'cb', 'ln_ta', 'ln_emp',\
@@ -248,5 +248,7 @@ stat, pval = ttest_ind(df_agg_positive.pop_area, \
                            equal_var = False, nan_policy = 'omit') #Statistically significantly different
 
 ## Percentage change
-perc_change = ((df_2017.set_index('fips').log_min_distance - df_2010.set_index('fips').log_min_distance) / df_2010.set_index('fips').log_min_distance).mean()
+perc_change = ((df_2019.set_index('fips').log_min_distance - df_2010.set_index('fips').log_min_distance) / df_2010.set_index('fips').log_min_distance).mean()
+
+
 

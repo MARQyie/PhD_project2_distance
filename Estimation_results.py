@@ -46,6 +46,39 @@ from Code_docs.Help_functions.MD_panel_estimation import MultiDimensionalOLS, Tr
 #------------------------------------------------------------
 
 df = pd.read_csv('Data/data_agg_clean.csv')
+df['intercept'] = 1
+
+#------------------------------------------------------------
+# Hausman specification test
+#------------------------------------------------------------
+
+def HausmanSpecificationTest(b0, b1, v0, v1):
+    ''' This method implements the Hausman specification test, based on the 
+        formula:
+            
+            H = (b0 - b1)'(v0 - v1)^-1(b0 - b1),
+            
+        where b0, v0 are the parameter estimates, variance of the consistent model (FE),
+        and b1 are the parameter estimates, variance of the efficient model (POLS/RE)
+        
+        The degrees of freedom for the statistic is the rank of the difference
+        in the variance matrices. 
+        '''
+        
+    # Prelims
+    b_diff = b0 - b1
+    v_diff = v0 - v1
+    v_inv = np.linalg.inv(v_diff)
+    dof = np.linalg.matrix_rank(v_diff)
+        
+    # Calculate the H-stat
+    H = b_diff.T @ v_inv @ b_diff
+        
+    # Calculate significance
+    pval = stats.chi2.sf(H, dof)
+        
+    return H, pval, dof
+        
 
 #------------------------------------------------------------
 # Make full and restricted df and set variables
@@ -106,7 +139,7 @@ file_re_msatcert_lsint_res  = 'Results/Results_re_msatcert_lsint_res{}'
 #------------------------------------------------------------
 
 # Run
-results_ols_ls_full = MultiDimensionalOLS().fit(df_full[y_var], df_full[x_ls_var], cov_type = cov_type, cluster_cols = df_full[cluster_cols_var])
+results_ols_ls_full = MultiDimensionalOLS().fit(df_full[y_var], df_full[x_ls_var + ['intercept']], cov_type = cov_type, cluster_cols = df_full[cluster_cols_var])
 
 # Transform to pandas df
 df_results_ols_ls_full = results_ols_ls_full.to_dataframe()
@@ -124,7 +157,7 @@ df_results_ols_ls_full.to_csv(file_ols_ls_full.format('csv'))
 #------------------------------------------------------------
 
 # Run
-results_ols_ls_res = MultiDimensionalOLS().fit(df_res[y_var], df_res[x_ls_var], cov_type = cov_type, cluster_cols = df_res[cluster_cols_var])
+results_ols_ls_res = MultiDimensionalOLS().fit(df_res[y_var], df_res[x_ls_var + ['intercept']], cov_type = cov_type, cluster_cols = df_res[cluster_cols_var])
 
 # Transform to pandas df
 df_results_ols_ls_res = results_ols_ls_res.to_dataframe()
@@ -142,7 +175,7 @@ df_results_ols_ls_res.to_csv(file_ols_ls_res.format('csv'))
 #------------------------------------------------------------
 
 # Run
-results_ols_int_res = MultiDimensionalOLS().fit(df_res[y_var], df_res[x_int_var], cov_type = cov_type, cluster_cols = df_res[cluster_cols_var])
+results_ols_int_res = MultiDimensionalOLS().fit(df_res[y_var], df_res[x_int_var + ['intercept']], cov_type = cov_type, cluster_cols = df_res[cluster_cols_var])
 
 # Transform to pandas df
 df_results_ols_int_res = results_ols_int_res.to_dataframe()
@@ -160,7 +193,7 @@ df_results_ols_int_res.to_csv(file_ols_int_res.format('csv'))
 #------------------------------------------------------------
 
 # Run
-results_ols_lsint_res = MultiDimensionalOLS().fit(df_res[y_var], df_res[x_tot_var], cov_type = cov_type, cluster_cols = df_res[cluster_cols_var])
+results_ols_lsint_res = MultiDimensionalOLS().fit(df_res[y_var], df_res[x_tot_var + ['intercept']], cov_type = cov_type, cluster_cols = df_res[cluster_cols_var])
 
 # Transform to pandas df
 df_results_ols_lsint_res = results_ols_lsint_res.to_dataframe()
@@ -235,6 +268,9 @@ df_results_fe_tcert_ls_full['cert'] = cert_full
 df_results_fe_tcert_ls_full.to_excel(file_fe_tcert_ls_full.format('xlsx'))
 df_results_fe_tcert_ls_full.to_csv(file_fe_tcert_ls_full.format('csv'))
 
+# Hausman spec test (FE vs OLS)
+#H_lsnum_full, pval_H_lsnum_full, dof_H_lsnum_full = HausmanSpecificationTest(results_fe_tcert_ls_full.params, results_ols_ls_full.params, results_fe_tcert_ls_full.cov, results_ols_ls_full.cov)
+
 #------------------------------------------------------------
 # 8) FE: cert and date -- loan sales + controls -- Reduced sample
 #------------------------------------------------------------
@@ -254,6 +290,9 @@ df_results_fe_tcert_ls_res['cert'] = cert_res
 # Save to excel and csv
 df_results_fe_tcert_ls_res.to_excel(file_fe_tcert_ls_res.format('xlsx'))
 df_results_fe_tcert_ls_res.to_csv(file_fe_tcert_ls_res.format('csv'))
+
+# Hausman spec test (FE vs OLS)
+#H_lsnum_res, pval_H_lsnum_res, dof_H_lsnum_res = HausmanSpecificationTest(results_fe_tcert_ls_res.params, results_ols_ls_res.params, results_fe_tcert_ls_res.cov, results_ols_ls_res.cov)
 
 #------------------------------------------------------------
 # 9) FE: cert and date -- Internet + controls -- Reduced sample
@@ -275,6 +314,9 @@ df_results_fe_tcert_int_res['cert'] = cert_res
 df_results_fe_tcert_int_res.to_excel(file_fe_tcert_int_res.format('xlsx'))
 df_results_fe_tcert_int_res.to_csv(file_fe_tcert_int_res.format('csv'))
 
+# Hausman spec test (FE vs OLS)
+#H_int_res, pval_H_int_res, dof_H_int_res = HausmanSpecificationTest(results_fe_tcert_int_res.params, results_ols_int_res.params, results_fe_tcert_int_res.cov, results_ols_int_res.cov)
+
 #------------------------------------------------------------
 # 10) FE: cert and date -- Loan Sales + Internet + controls -- Reduced sample
 #------------------------------------------------------------
@@ -294,6 +336,9 @@ df_results_fe_tcert_lsint_res['cert'] = cert_res
 # Save to excel and csv
 df_results_fe_tcert_lsint_res.to_excel(file_fe_tcert_lsint_res.format('xlsx'))
 df_results_fe_tcert_lsint_res.to_csv(file_fe_tcert_lsint_res.format('csv'))
+
+# Hausman spec test (FE vs OLS)
+#H_lsint_res, pval_H_lsint_res, dof_H_lsint_res = HausmanSpecificationTest(results_fe_tcert_lsint_res.params, results_ols_lsint_res.params, results_fe_tcert_lsint_res.cov, results_ols_lsint_res.cov)
 
 #------------------------------------------------------------
 # 11) RE: cert and date*msamd -- Loan Sales + controls -- Full sample

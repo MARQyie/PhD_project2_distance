@@ -16,7 +16,7 @@
 
 # Set working directory
 import os
-os.chdir(r'X:/My Documents/PhD/Materials_papers/2-Working_paper_competition')
+os.chdir(r'D:/RUG/PhD/Materials_papers/2-Working_paper_competition')
 
 # Load packages
 import pandas as pd
@@ -31,14 +31,14 @@ sns.set(style = 'whitegrid', font_scale = 1.75, palette = 'Greys_d')
 #------------------------------------------------------------
 
 start = 2010
-end = 2017
+end = 2019
 
 #------------------------------------------------------------
 # Load the data in one df
 #------------------------------------------------------------
 
 # Prelims
-path_sdi = r'X:/My Documents/Data/Data_SDI/{}/'
+path_sdi = r'D:/RUG/Data/Data_SDI/{}/'
 file_sdi = r'All_Reports_{}1231_Assets and Liabilities.csv'
 vars_sdi = ['cert','fed_rssd','numemp','asset','cb']
 
