@@ -36,7 +36,7 @@ from joblib import Parallel, delayed
 # Set Parameters
 #------------------------------------------------------------
 
-start = 2017
+start = 2010
 end = 2019
 
 num_cores = mp.cpu_count()
@@ -55,13 +55,29 @@ vars_lf = ['hmprid'] + ['CERT{}'.format(str(year)[2:4]) for year in range(start,
 
 ## HMDA LAR
 path_hmda = r'D:/RUG/Data/Data_HMDA/LAR/'
-file_hmda_1017 = r'hmda_{}_nationwide_originated-records_codes.zip'
+file_hmda_04 = 'f{}lar.public.dat.zip'
+file_hmda_0506 = 'LARS.FINAL.{}.DAT.zip'
+file_hmda_0717 = r'hmda_{}_nationwide_all-records_codes.zip'
 file_hmda_1819 = r'year_{}.csv'
-dtypes_col_hmda = {'state_code':'str', 'county_code':'str','msamd':'str',\
+dtypes_col_hmda = {'respondent_id':'object','state_code':'str', 'county_code':'str','msamd':'str',\
                    'census_tract_number':'str', 'derived_msa-md':'str'}
+col_width_0406 = [4, 10, 1, 1, 1, 1, 5, 1, 5, 2, 3, 7, 1, 1, 4, 1, 1, 1, 1, 1, 1,\
+             1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 5, 1, 1, 7]
+col_names_0406 = ['date','respondent_id', 'agency_code', 'loan_type',\
+             'loan_purpose', 'owner_occupancy', 'loan_amount_000s',\
+             'action_taken', 'msamd', 'state_code', 'county_code',\
+             'census_tract_number', 'applicant_sex', 'co_applicant_sex',\
+             'applicant_income_000s', 'purchaser_type', 'denial_reason_1',\
+             'denial_reason_2', 'denial_reason_3', 'edit_status', 'property_type',\
+             'preapproval', 'applicant_ethnicity', 'co_applicant_ethnicity',\
+             'applicant_race_1', 'applicant_race_2', 'applicant_race_3',\
+             'applicant_race_4', 'applicant_race_5', 'co_applicant_race_1',\
+             'co_applicant_race_2', 'co_applicant_race_3', 'co_applicant_race_4',\
+             'co_applicant_race_5', 'rate_spread', 'hoepa_status', 'lien_status',\
+             'sequence_number']
 na_values = ['NA   ', 'NA ', '...',' ','NA  ','NA      ','NA     ','NA    ','NA', 'Exempt', 'N/AN/', 'na']
 
-## HMDA pabel
+## HMDA panel
 path_hmda_panel = r'D:/RUG/Data/Data_HMDA/Panel/'
 file_hmda_panel = r'{}_public_panel_csv.csv'
 
@@ -72,8 +88,12 @@ df_lf = pd.read_stata(path_lf + file_lf, columns = vars_lf)
 # HMDA
 def cleanHMDA(year):
     #Load the dataframe in a temporary frame
-    if year < 2018:
-        df_chunk = pd.read_csv(path_hmda + file_hmda_1017.format(year), index_col = 0, chunksize = 1e6, na_values = na_values, dtype = dtypes_col_hmda)
+    if year == 2004:
+        df_chunk = pd.read_fwf(path_hmda + file_hmda_04.format(year), widths = col_width_0406, names = col_names_0406, chunksize = 1e6, na_values = na_values, dtype = dtypes_col_hmda, header=None)
+    elif year < 2007:
+        df_chunk = pd.read_fwf(path_hmda + file_hmda_0506.format(year), widths = col_width_0406, names = col_names_0406, chunksize = 1e6, na_values = na_values, dtype = dtypes_col_hmda, header=None)
+    elif year < 2018:
+        df_chunk = pd.read_csv(path_hmda + file_hmda_0717.format(year), index_col = 0, chunksize = 1e6, na_values = na_values, dtype = dtypes_col_hmda)
     else: # From 2018 onward structure of the data changes
         df_chunk = pd.read_csv(path_hmda + file_hmda_1819.format(year), index_col = 0, chunksize = 1e6, na_values = na_values, dtype = dtypes_col_hmda)
         df_panel = pd.read_csv(path_hmda_panel + file_hmda_panel.format(year))
@@ -124,7 +144,10 @@ def cleanHMDA(year):
                          dropna(axis = 0, how = 'any', subset = ['msamd','loan_amount_000s','applicant_income_000s'])
         else:
             chunk_filtered = chunk[chunk.respondent_id.isin(df_lf[df_lf['CERT{}'.format(17)] >= 0.0].hmprid)].\
-                         dropna(axis = 0, how = 'any', subset = ['msamd','loan_amount_000s','applicant_income_000s'])            
+                         dropna(axis = 0, how = 'any', subset = ['msamd','loan_amount_000s','applicant_income_000s'])
+                         
+        ## Drop all purchased loans, denied preapproval requests and non-home purchase loans
+        chunk_filtered = chunk_filtered[(chunk_filtered.action_taken < 6) & (chunk_filtered.loan_purpose == 1)]
         
         ## Make a fips column and remove separate state and county
         if year < 2018:
@@ -134,20 +157,14 @@ def cleanHMDA(year):
         chunk_filtered.drop(columns = ['state_code', 'county_code'], inplace = True)
         
         ## Make one ethnicity column
-        chunk_filtered['ethnicity_borrower'] = determineEthnicity(chunk_filtered)
+        ethnicity = determineEthnicity(chunk_filtered)
+        dummies_ethnicity = pd.get_dummies(ethnicity, prefix = 'ethnicity')
+        chunk_filtered[dummies_ethnicity.columns] = dummies_ethnicity
         
         ## Add a date var
         chunk_filtered['date'] = year
     
         ## Add variables
-        ''' List of new vars
-                Loan to income
-                ln 1 + loan amount
-                ln 1 + income
-                Dummy Subprime
-                Dummy Secured
-                Total loan sales, loan sales to GSE, loan sales to private parties, private securitization
-        '''
         ### Loan to income
         chunk_filtered['lti'] = np.log(1 + (chunk_filtered.loan_amount_000s / chunk_filtered.applicant_income_000s))
         
@@ -158,11 +175,40 @@ def cleanHMDA(year):
         chunk_filtered['ln_appincome'] = np.log(1 + chunk_filtered.applicant_income_000s)
         
         ### Dummy subprime
-        chunk_filtered['subprime'] = (chunk_filtered.rate_spread > 0.0) * 1
+        if year < 2018:
+            chunk_filtered['subprime'] = (chunk_filtered.rate_spread > 0.0) * 1
+        else:
+            # NOTE: we can use swifter to speed up the process. Supported by peregrine?
+            lambda_subprime = lambda data: (data.rate_spread - 0.03) > 0.0 if data.lien_status == 1 else (data.rate_spread - 0.05) > 0.0 if data.lien_status == 2 else np.nan
+            chunk_filtered['subprime'] = (chunk_filtered.apply(lambda_subprime)) * 1
         
-        ### Dummy secured
-        chunk_filtered['secured'] = (chunk_filtered.lien_status.isin([1,2])) * 1
         
+        ### Dummy first lien
+        chunk_filtered['lien'] = (chunk_filtered.lien_status == 1) * 1
+        
+        ### Dummy HOEPA loan
+        chunk_filtered['hoepa'] = (chunk_filtered.hoepa_status == 1)
+        
+        ### Loan type dummies
+        dummies_loan = pd.get_dummies(chunk_filtered.loan_type, prefix = 'loan_type')
+        chunk_filtered[dummies_loan.columns] = dummies_loan
+        
+        ### Owner occupancy dummy
+        if year < 2018:
+            chunk_filtered['owner'] = (chunk_filtered.owner_occupancy == 1) * 1
+        else:
+            chunk_filtered['owner'] = (chunk_filtered.occupancy_type == 1) * 1
+        
+        ### Dummy Pre-approval
+        chunk_filtered['preapp'] = (chunk_filtered.preapproval == 1) * 1
+        
+        ### Dummies Sex (possibilities: male, female, non-disclosed)
+        dummies_sex = pd.get_dummies(chunk_filtered.applicant_sex, prefix = 'sex')
+        chunk_filtered[dummies_sex.columns] = dummies_sex
+        
+        ### Dummy co-applicant
+        chunk_filtered['coapp'] = (chunk_filtered.co_applicant_sex & chunk_filtered.co_applicant_ethnicity == 5) * 1
+                
         ### Loan sale dummies
         chunk_filtered['ls'] = (chunk_filtered.purchaser_type.isin(list(range(1,9+1)) + [71, 72])) * 1
         chunk_filtered['ls_gse'] = (chunk_filtered.purchaser_type.isin(range(1,4+1))) * 1
@@ -170,11 +216,24 @@ def cleanHMDA(year):
         chunk_filtered['sec'] = (chunk_filtered.purchaser_type == 5) * 1
            
         ## Drop unneeded columns
-        columns = ['respondent_id', 'agency_code', 'loan_type', 'loan_purpose', 'msamd',\
+        if year < 2018:
+            columns = ['respondent_id', 'agency_code', 'loan_type', 'loan_purpose', 'msamd',\
                    'applicant_sex', 'co_applicant_sex', 'population', 'minority_population',\
                    'hud_median_family_income', 'tract_to_msamd_income', 'number_of_1_to_4_family_units',\
                    'fips', 'ethnicity_borrower', 'date', 'lti', 'ln_loanamout', 'ln_appincome',\
-                   'subprime', 'secured', 'ls', 'ls_gse', 'ls_priv', 'sec']
+                   'subprime', 'lien', 'hoepa', 'owner', 'preapp', 'coapp','ls',\
+                   'ls_gse', 'ls_priv', 'sec'] + dummies_ethnicity.columns.tolist() +\
+                    dummies_loan.columns.tolist() + dummies_sex.columns.tolist()
+        else:
+            # Todo: add extra 2018-2019 variables
+            columns = ['respondent_id', 'agency_code', 'loan_type', 'loan_purpose', 'msamd',\
+                   'applicant_sex', 'co_applicant_sex', 'population', 'minority_population',\
+                   'hud_median_family_income', 'tract_to_msamd_income', 'number_of_1_to_4_family_units',\
+                   'fips', 'ethnicity_borrower', 'date', 'lti', 'ln_loanamout', 'ln_appincome',\
+                   'subprime', 'lien', 'hoepa', 'owner', 'preapp', 'coapp','ls',\
+                   'ls_gse', 'ls_priv', 'sec'] + dummies_ethnicity.columns.tolist() +\
+                    dummies_loan.columns.tolist() + dummies_sex.columns.tolist()
+        
         chunk_filtered = chunk_filtered[columns]
         
         ## Drop na in fips
@@ -193,3 +252,4 @@ def cleanHMDA(year):
 #
 if __name__ == '__main__':
     Parallel(n_jobs=num_cores)(delayed(cleanHMDA)(year) for year in range(start,end + 1))
+    

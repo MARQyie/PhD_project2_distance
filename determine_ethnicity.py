@@ -8,8 +8,7 @@ def determineEthnicity(dataframe):
     import numpy as np
     
     #Prelims
-    list_race = ['applicant_race_1', 'applicant_race_2', 'applicant_race_3', 'applicant_race_4', 'applicant_race_5',
-                 'co_applicant_race_1', 'co_applicant_race_2', 'co_applicant_race_3', 'co_applicant_race_4', 'co_applicant_race_5']
+    list_race = ['applicant_race_1', 'applicant_race_2', 'applicant_race_3', 'applicant_race_4', 'applicant_race_5']
     list_eth = ['applicant_ethnicity', 'co_applicant_ethnicity']
     vector = pd.DataFrame(index = dataframe.index, columns = ['ethnicity_borrower'])
     
