@@ -28,7 +28,7 @@ sns.set(style = 'whitegrid', font_scale = 1.75, palette = 'Greys_d')
 # Set Parameters
 #------------------------------------------------------------
 
-start = 2010
+start = 2004
 end = 2019
 
 #------------------------------------------------------------
@@ -48,12 +48,9 @@ list_df_sod = []
 for year in range(start,end + 1):
     # Load the dataframe in a temporary frame
     df_sod_load = pd.read_csv(path_sod + file_sod.format(year),\
-                              usecols = vars_sod, dtype = dtypes_col_sod)
+                              usecols = vars_sod, dtype = dtypes_col_sod, thousands = ',')
     # Correct STCNTYBR
     df_sod_load['STCNTYBR'] = df_sod_load.STCNTYBR.str.zfill(5)
-    
-    # Fix DEPSUMBR (reads in as object, but should be an int)
-    df_sod_load['DEPSUMBR'] = df_sod_load.DEPSUMBR.str.replace(',','').astype(int)
     
     # Force lowercase column names
     df_sod_load.columns = map(str.lower, df_sod_load.columns)

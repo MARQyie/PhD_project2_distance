@@ -4,7 +4,7 @@
     the HMDA lender file (avery file)
     
     The script does the following
-    1. Reads in the HMDA dataframes for each year-end from 2010 to 2017
+    1. Reads in the HMDA dataframes for each year-end from 2004 to 2019
     2. Select the relevant variables
     3. Clean up the dataframe
     
@@ -36,10 +36,11 @@ from joblib import Parallel, delayed
 # Set Parameters
 #------------------------------------------------------------
 
-start = 2010
+start = 2017
 end = 2019
 
-num_cores = mp.cpu_count()
+#num_cores = mp.cpu_count() 
+num_cores = 4
 
 #------------------------------------------------------------
 # Load the data, clean and save
@@ -50,8 +51,7 @@ num_cores = mp.cpu_count()
 path_lf = r'D:/RUG/Data/Data_HMDA_lenderfile/'
 file_lf = r'hmdpanel17.dta'
 vars_lf = ['hmprid'] + ['CERT{}'.format(str(year)[2:4]) for year in range(start, end -1)] \
-          + ['ENTITY{}'.format(str(year)[2:4]) for year in range(start, end -1)] \
-          + ['RSSD{}'.format(str(year)[2:4]) for year in range(start, end -1)]
+          + ['ENTITY{}'.format(str(year)[2:4]) for year in range(start, end -1)]
 
 ## HMDA LAR
 path_hmda = r'D:/RUG/Data/Data_HMDA/LAR/'
@@ -156,6 +156,10 @@ def cleanHMDA(year):
             chunk_filtered['fips'] =  chunk_filtered['county_code'].str.zfill(5)
         chunk_filtered.drop(columns = ['state_code', 'county_code'], inplace = True)
         
+        # Add variables
+        ## Originated dummy
+        chunk_filtered['loan_originated'] = (chunk_filtered.action_taken == 1) * 1
+        
         ## Make one ethnicity column
         ethnicity = determineEthnicity(chunk_filtered)
         dummies_ethnicity = pd.get_dummies(ethnicity, prefix = 'ethnicity')
@@ -164,79 +168,115 @@ def cleanHMDA(year):
         ## Add a date var
         chunk_filtered['date'] = year
     
-        ## Add variables
-        ### Loan to income
+        ## Loan to income
         chunk_filtered['lti'] = np.log(1 + (chunk_filtered.loan_amount_000s / chunk_filtered.applicant_income_000s))
         
-        ### ln loan amount
+        ## ln loan amount
         chunk_filtered['ln_loanamout'] = np.log(1 + chunk_filtered.loan_amount_000s)
         
-        ### ln income
+        ## ln income
         chunk_filtered['ln_appincome'] = np.log(1 + chunk_filtered.applicant_income_000s)
         
-        ### Dummy subprime
+        ## Dummy subprime
         if year < 2018:
             chunk_filtered['subprime'] = (chunk_filtered.rate_spread > 0.0) * 1
         else:
             # NOTE: we can use swifter to speed up the process. Supported by peregrine?
             lambda_subprime = lambda data: (data.rate_spread - 0.03) > 0.0 if data.lien_status == 1 else (data.rate_spread - 0.05) > 0.0 if data.lien_status == 2 else np.nan
-            chunk_filtered['subprime'] = (chunk_filtered.apply(lambda_subprime)) * 1
+            chunk_filtered['subprime'] = (chunk_filtered.apply(lambda_subprime, axis = 1)) * 1
         
         
-        ### Dummy first lien
+        ## Dummy first lien
         chunk_filtered['lien'] = (chunk_filtered.lien_status == 1) * 1
         
-        ### Dummy HOEPA loan
-        chunk_filtered['hoepa'] = (chunk_filtered.hoepa_status == 1)
+        ## Dummy HOEPA loan
+        chunk_filtered['hoepa'] = (chunk_filtered.hoepa_status == 1) * 1
         
-        ### Loan type dummies
+        ## Loan type dummies
         dummies_loan = pd.get_dummies(chunk_filtered.loan_type, prefix = 'loan_type')
         chunk_filtered[dummies_loan.columns] = dummies_loan
         
-        ### Owner occupancy dummy
+        ## Owner occupancy dummy
         if year < 2018:
             chunk_filtered['owner'] = (chunk_filtered.owner_occupancy == 1) * 1
         else:
             chunk_filtered['owner'] = (chunk_filtered.occupancy_type == 1) * 1
         
-        ### Dummy Pre-approval
+        ## Dummy Pre-approval
         chunk_filtered['preapp'] = (chunk_filtered.preapproval == 1) * 1
         
-        ### Dummies Sex (possibilities: male, female, non-disclosed)
+        ## Dummies Sex (possibilities: male, female, non-disclosed)
         dummies_sex = pd.get_dummies(chunk_filtered.applicant_sex, prefix = 'sex')
         chunk_filtered[dummies_sex.columns] = dummies_sex
         
-        ### Dummy co-applicant
+        ## Dummy co-applicant
         chunk_filtered['coapp'] = (chunk_filtered.co_applicant_sex & chunk_filtered.co_applicant_ethnicity == 5) * 1
                 
-        ### Loan sale dummies
+        ## Loan sale dummies
         chunk_filtered['ls'] = (chunk_filtered.purchaser_type.isin(list(range(1,9+1)) + [71, 72])) * 1
         chunk_filtered['ls_gse'] = (chunk_filtered.purchaser_type.isin(range(1,4+1))) * 1
         chunk_filtered['ls_priv'] = (chunk_filtered.purchaser_type.isin(list(range(1,9+1)) + [71, 72])) * 1
         chunk_filtered['sec'] = (chunk_filtered.purchaser_type == 5) * 1
+        
+        ## Variables > 
+        if year >= 2018:
+            ### Loan-to-value ratio (NOTE: need to clean)
+            chunk_filtered['ltv'] = chunk_filtered.loan_to_value_ratio
+            
+            ### Total loan costs to total loan value
+            chunk_filtered['loan_costs'] = chunk_filtered.total_loan_costs.divide(chunk_filtered.loan_amount_000s)
+            
+            ### Points and fees to total loan value
+            chunk_filtered['points'] = chunk_filtered.total_points_and_fees.divide(chunk_filtered.loan_amount_000s)
+            
+            ### Origination charges to total loan value
+            chunk_filtered['ori_charges'] = chunk_filtered.origination_charges.divide(chunk_filtered.loan_amount_000s)
+            
+            ### Lender credit to total loan value
+            chunk_filtered['lender_credit'] = chunk_filtered.lender_credits.divide(chunk_filtered.loan_amount_000s)
+            
+            ### Negative amortization
+            chunk_filtered['neg_amor'] = (chunk_filtered.negative_amortization == 1) * 1
+            
+            ### Interest payment only dummy
+            chunk_filtered['int_only'] = (chunk_filtered.interest_only_payment == 1) * 1
+            
+            ### Balloon payment dummy
+            chunk_filtered['balloon'] = (chunk_filtered.balloon_payment == 1) * 1
+            
+            ### Maturity mortgage > 30 years
+            chunk_filtered['mat'] = (chunk_filtered.loan_term >= 360) * 1
            
-        ## Drop unneeded columns
-        if year < 2018:
-            columns = ['respondent_id', 'agency_code', 'loan_type', 'loan_purpose', 'msamd',\
-                   'applicant_sex', 'co_applicant_sex', 'population', 'minority_population',\
+        # Drop unneeded columns
+        if year < 2018 and year < 2007:
+            columns = ['respondent_id', 'agency_code', 'loan_originated', 'loan_type', 'loan_purpose', 'msamd',\
+                   'fips', 'date', 'lti', 'ln_loanamout', 'ln_appincome',\
+                   'subprime', 'lien', 'hoepa', 'owner', 'preapp', 'coapp','ls',\
+                   'ls_gse', 'ls_priv', 'sec'] + dummies_ethnicity.columns.tolist() +\
+                    dummies_loan.columns.tolist() + dummies_sex.columns.tolist()
+        elif year < 2018 and year >= 2007:
+            columns = ['respondent_id', 'agency_code', 'loan_originated', 'loan_type', 'loan_purpose', 'msamd',\
+                   'population', 'minority_population',\
                    'hud_median_family_income', 'tract_to_msamd_income', 'number_of_1_to_4_family_units',\
-                   'fips', 'ethnicity_borrower', 'date', 'lti', 'ln_loanamout', 'ln_appincome',\
+                   'fips', 'date', 'lti', 'ln_loanamout', 'ln_appincome',\
                    'subprime', 'lien', 'hoepa', 'owner', 'preapp', 'coapp','ls',\
                    'ls_gse', 'ls_priv', 'sec'] + dummies_ethnicity.columns.tolist() +\
                     dummies_loan.columns.tolist() + dummies_sex.columns.tolist()
         else:
             # Todo: add extra 2018-2019 variables
-            columns = ['respondent_id', 'agency_code', 'loan_type', 'loan_purpose', 'msamd',\
-                   'applicant_sex', 'co_applicant_sex', 'population', 'minority_population',\
+            columns = ['respondent_id', 'agency_code', 'loan_originated', 'loan_type', 'loan_purpose', 'msamd',\
+                   'population', 'minority_population',\
                    'hud_median_family_income', 'tract_to_msamd_income', 'number_of_1_to_4_family_units',\
-                   'fips', 'ethnicity_borrower', 'date', 'lti', 'ln_loanamout', 'ln_appincome',\
+                   'fips', 'date', 'lti', 'ln_loanamout', 'ln_appincome',\
                    'subprime', 'lien', 'hoepa', 'owner', 'preapp', 'coapp','ls',\
-                   'ls_gse', 'ls_priv', 'sec'] + dummies_ethnicity.columns.tolist() +\
+                   'ls_gse', 'ls_priv', 'sec','rate_spread','ltv','loan_costs','points',\
+                   'ori_charges','lender_credit','loan_term','neg_amor','mat',\
+                   'int_only','balloon'] + dummies_ethnicity.columns.tolist() +\
                     dummies_loan.columns.tolist() + dummies_sex.columns.tolist()
         
         chunk_filtered = chunk_filtered[columns]
         
-        ## Drop na in fips
+        # Drop na in fips
         chunk_filtered.dropna(subset = ['fips'], inplace = True)
         
         # Add the chunk to the list
@@ -245,11 +285,9 @@ def cleanHMDA(year):
     # concat the list into dataframe 
     df_hmda = pd.concat(chunk_list)
     
-    # Save as zipped dataframe
-    df_hmda.to_csv('Data/data_hmda_{}.csv.gz'.format(year), index = False, compression = 'gzip')
+    # Save dataframe
     df_hmda.to_csv('Data/data_hmda_{}.csv'.format(year), index = False)
     
 #
 if __name__ == '__main__':
     Parallel(n_jobs=num_cores)(delayed(cleanHMDA)(year) for year in range(start,end + 1))
-    

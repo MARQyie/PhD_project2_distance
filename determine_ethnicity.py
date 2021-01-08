@@ -29,4 +29,4 @@ def determineEthnicity(dataframe):
     vector[~black & ~hispanic & ~amer_ind & ~hawaiian & ~asian & white_nh] = 0
     vector[~black & ~hispanic & ~amer_ind & ~hawaiian & ~asian & ~white_nh] = np.nan
     
-    return(np.array(vector))   
+    return(vector)   
