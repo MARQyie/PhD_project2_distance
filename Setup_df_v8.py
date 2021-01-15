@@ -1,5 +1,8 @@
 # Setup the df 
 ''' This script makes the final df (before data cleaning). 
+
+    We use dask.dataframes to cut back on RAM-usage and utilize fast parallelization
+    of loading the dataframes.
     
     Final df: MSA-lender-level dataset per year
 '''
@@ -14,10 +17,23 @@ import os
 os.chdir(r'D:/RUG/PhD/Materials_papers/2-Working_paper_competition/Data/')
 
 # Load packages
+## Data manipulation packages
 import numpy as np
 import pandas as pd
+
+## Parallel functionality pandas via Dask
+import dask.dataframe as dd 
+import dask 
+#dask.config.set({'temporary_directory': '/data/p285325/WP2_distance/'})
+dask.config.set({'temporary_directory': 'D:/RUG/PhD/Materials_papers/2-Working_paper_competition/Data/'})
+
+## Parallel processing
 import multiprocessing as mp # For parallelization
 from joblib import Parallel, delayed # For parallelization
+
+## Data storage
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 #------------------------------------------------------------
 # Parameters
@@ -31,14 +47,6 @@ num_cores = mp.cpu_count()
 # Setup necessary functions
 #------------------------------------------------------------
 
-# Function for parallelization pandas read_csv for the HMDA data
-def readHMDA(year):
-    
-    filename = 'data_hmda_{}.csv'.format(year)
-    
-    return (pd.read_csv(filename, dtype = {'msamd':'uint16', 'fips':'uint16',\
-                                           'respondent_id':'str'}))
-    
 # Merge SDI LF   
 def mergeSDILF(year):
     
@@ -48,7 +56,6 @@ def mergeSDILF(year):
     else:
         cert = 'CERT17'
        
-    ## Merge on year
     df_load = df_sdi[df_sdi.date == year].merge(df_lf.dropna(subset = [cert]),\
                             how = 'left', left_on = 'cert',\
                             right_on = cert)
@@ -77,44 +84,42 @@ def tmpLSDum(df, col_name):
 ## Ever loan sales dummies
 def tmpLSEver(df, col_name):
     return((1 in df[col_name]) * 1)
-    
+
+## Local lender dummy
+def findLocal(cert, msamd):
+    return  any(item in dict_cert[cert] for item in dict_msamd[msamd]) * 1
+
 #------------------------------------------------------------
 # Load all dfs that do not need to be read in the loop
 #------------------------------------------------------------
-
-# df MSA
-df_msa = pd.read_csv('data_msa_popcenter.csv', index_col = 0, dtype = {'fips':'uint16'})
-
-## Remove duplicate rows
-df_msa.drop_duplicates(subset = ['date','population', 'latitude', 'longitude', 'fips', 'ln_pop'], inplace = True)
                   
 # SOD df
-df_sod = pd.read_csv('df_sod_wp2.csv', index_col = 0, dtype = {'fips':'uint16'})
+df_sod = pd.read_csv('df_sod_wp2.csv', dtype = {'fips':'int32'},index_col = 0)
 
 # df SDI
-df_sdi = pd.read_csv('df_sdi_wp2.csv', index_col = 0)
+df_sdi = pd.read_csv('df_sdi_wp2.csv', dtype = {'cert':'float'},index_col = 0)
 
 # df pop
-df_pop = pd.read_csv('data_pop.csv', index_col = 0)
+df_pop = pd.read_csv('data_pop.csv',index_col = ['fips','date'], usecols = ['fips','date','population','pop_area'])
 
 # df_int
-df_int = pd.read_csv('data_internet.csv', index_col = 0)
+df_int = pd.read_csv('data_internet.csv',index_col = ['fips','date'], usecols = ['fips','date', 'perc_intsub', 'perc_broadband', 'perc_noint'])
 
 # df LF
 ## Prelims
 vars_lf = ['hmprid'] + ['CERT{}'.format(str(year)[2:4]) for year in range(start, end - 1)]
 
 ## Load df LF
-df_lf = pd.read_csv('hmdpanel17.csv', usecols = vars_lf)
+df_lf = pd.read_csv('hmdpanel17.csv', usecols = vars_lf, dtype = {'hmprid':'str'})
 
 ### reduce dimensions df_lf
-df_lf.dropna(how = 'all', subset = vars_lf[1:], inplace = True) # drop rows with all na
+df_lf = df_lf.dropna(how = 'all', subset = vars_lf[1:]) # drop rows with all na
 df_lf = df_lf[~(df_lf[vars_lf[1:]] == 0.).any(axis = 1)] # Remove cert with value 0.0
 df_lf = df_lf[df_lf[vars_lf[1:]].all(axis = 1)] # Drop rows that have different column values (nothing gets deleted: good)
 
 # Merge df SDI and df LF   
 if __name__ == "__main__":
-    list_sdilf = Parallel(n_jobs=num_cores)(delayed(mergeSDILF)(year) for year in range(start,end + 1)) 
+    list_sdilf = Parallel(n_jobs=num_cores,prefer="threads")(delayed(mergeSDILF)(year) for year in range(start,end + 1)) 
 
 ## Concat to pd DataFrame
 df_sdilf = pd.concat(list_sdilf, ignore_index = True)
@@ -122,21 +127,11 @@ df_sdilf = pd.concat(list_sdilf, ignore_index = True)
 ## Drop CERT.. columns and drop nans in hmprid
 df_sdilf = df_sdilf[df_sdilf.columns[~df_sdilf.columns.str.contains('CERT')]].dropna(subset = ['hmprid'])
 
-# Load HMDA
-if __name__ == "__main__":
-    list_hmda = Parallel(n_jobs=num_cores)(delayed(readHMDA)(year) for year in range(start,end + 1)) 
-
-## Concat to pd DataFrame and drop population column
-df_hmda = pd.concat(list_hmda, ignore_index = True) 
-df_hmda = df_hmda[df_hmda.loan_purpose == 1].drop(columns = ['population'])
-
-# Make main df
-df_main = df_sdilf.merge(df_hmda, how = 'left', left_on = ['date','hmprid'],\
-                             right_on = ['date','respondent_id'])
+del df_sdi, df_lf, list_sdilf
 
 # Load min_distances df
-df_mindist_2004 = pd.read_csv('data_min_distances_2004.csv', dtype = {'fips':'uint16'})
-df_mindist_2010 = pd.read_csv('data_min_distances_2010.csv', dtype = {'fips':'uint16'})
+df_mindist_2004 = pd.read_csv('data_min_distances_2004.csv', dtype = {'fips':'int64'})
+df_mindist_2010 = pd.read_csv('data_min_distances_2010.csv', dtype = {'fips':'int64'})
 
 ## Take log of min_distances
 df_mindist_2004['log_min_distance'] = np.log(df_mindist_2004.min_distance + 1)
@@ -145,66 +140,152 @@ df_mindist_2004['log_min_distance_cdd'] = np.log(df_mindist_2004.min_distance_cd
 df_mindist_2010['log_min_distance'] = np.log(df_mindist_2010.min_distance + 1)
 df_mindist_2010['log_min_distance_cdd'] = np.log(df_mindist_2010.min_distance_cdd + 1)
 
+# Make fips-level dataframe
+## Merge df_pop and df_int
+df_fips = df_pop.merge(df_int, how = 'left', left_index = True, right_index = True)
+
+## Add Branch Density
+density = df_sod.groupby(['fips','date']).fips.count().rename('density').to_frame()
+
+## Add HHI and merge
+hhi = df_sod.groupby(['fips','date']).depsumbr.apply(lambda x: ((x / x.sum())**2).sum()).rename('hhi').to_frame()
+df_fips_vars = density.merge(hhi, how = 'left', on = ['fips','date'])
+
+df_fips = df_fips.merge(df_fips_vars, left_index = True, right_index = True)
+
+## Delete datasets from working memory
+del df_pop, df_int, df_fips_vars
+
+# Make cert-level dataframe
+## Add number of branches
+df_cert = df_sod.groupby(['date','cert']).cert.count().rename('num_branch').to_frame().reset_index()
+
 #------------------------------------------------------------
-# Add control variables
+# Make main df
 #------------------------------------------------------------
+## NOTE: use dask to parallelize and prevent a RAM-overload
+lst_hmda = []
+#lambda_local = lambda data: 1 if any(item in dict_cert[data.cert] for item in dict_msamd[data.msamd]) * 1 else 0
 
-# Only keep MSA that are in the df_msa
-df_main = df_main[df_main.fips.isin(df_msa.fips.unique())] 
+for year in range(start, end + 1):
+    dd_hmda = dd.read_csv('data_hmda_{}.csv'.format(year), dtype = {'respondent_id':'str','sex_4': 'float64','ln_appincome':'float64','ethnicity_0': 'int8', 'ethnicity_1': 'int8','ethnicity_2': 'int8','ethnicity_3': 'int8','ethnicity_4': 'int8','ethnicity_5': 'int8','loan_type_1': 'int8','loan_type_2': 'int8','loan_type_3': 'int8','loan_type_4': 'int8','sex_1': 'int8','sex_2': 'int8','sex_3': 'int8'})
+    
+    # Subset data
+    dd_hmda = dd_hmda[(dd_hmda.loan_purpose == 1) & (dd_hmda.msamd != 0)]
+    
+    # Drop columns
+    if (year >= 2007):
+        dd_hmda = dd_hmda.drop(columns = ['sex_3','sex_4','population','minority_population',\
+                                'hud_median_family_income','tract_to_msamd_income',\
+                                'number_of_1_to_4_family_units'])
+    else:
+        dd_hmda = dd_hmda.drop(columns = ['sex_3','sex_4'])
+    
+    # Merge with df_sdilf
+    dd_hmda = dd.merge(dd_hmda,\
+                       df_sdilf[df_sdilf.date == year].drop(columns = ['date']).set_index('hmprid'),\
+                       left_on='respondent_id', right_index=True)
+    
+    # Merge with fips-level data
+    dd_hmda = dd.merge(dd_hmda,\
+                       df_fips[df_fips.index.get_level_values('date') == year].droplevel('date'),\
+                       left_on='fips', right_index=True) 
+    
+    # Merge with cert-level data
+    dd_hmda = dd.merge(dd_hmda,\
+                       df_cert[df_cert.date == year].drop(columns = ['date']),\
+                       left_on='cert', right_on='cert')
+        
+    # Merge with distance dfs
+    if year < 2010:
+        dd_hmda = dd.merge(dd_hmda, df_mindist_2004, left_on=['fips','cert'], right_on=['fips','cert'])
+    else:
+        dd_hmda = dd.merge(dd_hmda, df_mindist_2010, left_on=['fips','cert'], right_on=['fips','cert'])
+    
+    # Remove all certs that are not in df_sod
+    dd_hmda = dd_hmda[dd_hmda.cert.isin(df_sod.cert.unique())]
+    
+    # Add variables
+    ## population weigh density
+    dd_hmda['density'] = dd_hmda.density / dd_hmda.population
+    
+    lst_hmda.append(dd_hmda)
 
-# Remove all certs in df_main that are not in df_sod
-df_main = df_main[df_main.cert.isin(df_sod.cert)]
-  
-# Merge distance on fips and cert
-df_main_2004 = df_main[df_main.date < 2010].merge(df_mindist_2004, how = 'left', on = ['fips','cert'])
-df_main_2010 = df_main[df_main.date >= 2010].merge(df_mindist_2010, how = 'left', on = ['fips','cert'])
-df_main = pd.concat([df_main_2004,df_main_2010], ignore_index=True)
+# Concat dask dataframes
+dd_main = dd.concat(lst_hmda)
 
-# Merge population on fips and date
-df_main = df_main.merge(df_pop, how = 'left', on = ['fips','date'])
+# Save and compute the dd_main (prevent RAM overload)
+## NOTE: We partition on date such that we get smaller and useful partitions
+dd_main.to_parquet(path = 'data_main.parquet',\
+                   engine = 'pyarrow',\
+                   compression = 'snappy',\
+                   partition_on = ['date'],\
+                   write_metadata_file = True)
+    
+# Load dd_main
+dd_main = dd.read_parquet(path = 'data_main.parquet',\
+                       engine = 'pyarrow')
 
-# Merge internet on fips and date
-df_main = df_main.merge(df_int[['fips','date', 'perc_intsub', 'perc_broadband', 'perc_noint']], how = 'left', on = ['fips','date'])
+# Set dictionaries for local lender calculation
+dict_msamd = dict(dd_main.groupby('msamd').fips.unique().compute(scheduler = "threads"))
+dict_cert = dict(df_sod.groupby('cert').fips.unique())
 
-# Add FIPS-level vars
-## Branch Density
-density = df_sod.groupby(['date','fips']).fips.count().rename('density').to_frame().reset_index()
-df_msasod = density.merge(df_msa, how = 'left', on = ['date','fips'])
+# Remove all respective MSA/banks with only one observation
+drop_msamd = set(dd_main.msamd.value_counts()[dd_main.msamd.value_counts() > 1].index.compute())
+drop_cert = set(dd_main.cert.value_counts()[dd_main.cert.value_counts() > 1].index.compute())
 
-## HHI
-hhi = df_sod.groupby(['date','fips']).depsumbr.apply(lambda x: ((x / x.sum())**2).sum()).rename('hhi').to_frame().reset_index()
-df_msasod = hhi.merge(df_msasod, how = 'left', on = ['date','fips'])
+dd_main = dd_main[(dd_main.msamd.isin(drop_msamd)) & (dd_main.cert.isin(drop_cert))]
+npartitions_main = dd_main.npartitions
 
-## Merge msasod with main
-df_main = df_main.merge(df_msasod.drop('population', axis = 1), how = 'left', on = ['date','fips'])
+# Compute main dataset and remove unneeded datasets
+dd_main.to_parquet(path = 'data_main.parquet',\
+                   engine = 'pyarrow',\
+                   compression = 'snappy',\
+                   partition_on = ['date'],\
+                   write_metadata_file = True)
+dd_main = dd.read_parquet(path = 'data_main.parquet',\
+                       engine = 'pyarrow')
 
-# population weigh density
-df_main['density'] = df_main.density / df_main.population
+del dd_hmda, lst_hmda, df_sdilf, df_fips, df_cert, df_mindist_2004, df_mindist_2010
+
+#------------------------------------------------------------
+# Add local lender variable and prelim cleaning
+#------------------------------------------------------------
 
 # Add SDI data
-## ln_ta, ln_emp, bank indicator, and loan sales indicators
-df_main = df_main.merge(df_sdi[['date','cert','cb','ln_ta','ln_emp',\
-                        'sec_sdi','ls_sdi', 'lssec_sdi','sec_ever', 'ls_ever','lssec_ever']],\
-                      how = 'left', on = ['date','cert'])
-
-## Add number of branches
-num_branches = df_sod.groupby(['date','cert']).cert.count().rename('num_branch').to_frame()
-df_main = df_main.merge(num_branches, how = 'left', on = ['date','cert'])
-
 # Add local (lender) variable
-df_main['local']
+df_certmsamd = dd_main.loc[:,['cert','msamd']].compute(scheduler = 'threads')
 
-#df_main.loc[0,'fips'] in df_sod.loc[df_sod.cert == df_main.loc[0,'cert'],'fips']
+if __name__ == '__main__':
+    local = Parallel(n_jobs = num_cores, prefer="threads")(delayed(findLocal)(row.cert, row.msamd) for index, row in df_certmsamd.iterrows()) 
+    
+dd_main['local'] = local
+
+## Drop na (variables before 2018)
+subset = ['log_min_distance', 'ls', 'lti', 'ln_loanamout', 'ln_appincome', 'subprime', \
+               'cb', 'ln_ta', 'ln_emp', 'num_branch', 'pop_area', 'density', 'hhi']
+dd_main = dd_main.dropna(subset = subset)
+
+# Save
+dd_main.to_parquet(path = 'data_main.parquet',\
+                   engine = 'pyarrow',\
+                   compression = 'snappy',\
+                   partition_on = ['date'],\
+                   write_metadata_file = True)
+dd_main = dd.read_parquet(path = 'data_main.parquet',\
+                       engine = 'pyarrow')
+
 #------------------------------------------------------------
 # Aggregate to MSA-lender level
 #------------------------------------------------------------
 
-# Group the data
-df_grouped = df_main.groupby(['date','cert','msamd'])    
+# Group the data and only select originated loans
+df_grouped = dd_main[dd_main.loan_originated == 1].groupby(['date','cert','msamd'])
 
 # 1) Aggregate portfolio-specific variables
+## NOTE 'cb','ln_ta','ln_emp','num_branch' are only unique per date-cert group. Taking the mean of a date-cert-msamd gives us the same as a merge
 df_agg = df_grouped[['lti','ln_loanamout','ln_appincome','log_min_distance',\
-'log_min_distance_cdd']].mean()
+'log_min_distance_cdd','cb','ln_ta','ln_emp','num_branch']].mean()
 
 if __name__ == '__main__':
     df_agg['subprime'] = applyParallel(df_grouped, tmpPerc, 'subprime')
@@ -238,19 +319,12 @@ if __name__ == '__main__':
 df_agg.reset_index(inplace = True)
 
 # 2) Transform MSA specific variables
-df_grouped = df_main.groupby(['date','msamd'])    
+df_grouped = dd_main.groupby(['date','msamd'])    
 msa_data = df_grouped[['density', 'pop_area', 'hhi', 'perc_intsub', 'perc_broadband', 'perc_noint']].mean().reset_index()
 
 df_agg = df_agg.merge(msa_data, how = 'left', on = ['date','msamd'])
 
-'''OLD
-# Add average lending distance per MSA
-distance_msa = df_main.groupby(['date','msamd']).log_min_distance.mean().rename('mean_distance').to_frame()
-df_agg = df_agg.merge(distance_msa, how = 'left', left_on = ['date','msamd'], right_on = [distance_msa.index.get_level_values(0), distance_msa.index.get_level_values(1)])
-'''
-
-#------------------------------------------------------------
-# Remove all respective MSA/banks with only one observation and drop na (not in internet variables)
+# Remove all respective MSA/banks with only one observation
 drop_msamd = set(df_agg.msamd.value_counts()[df_agg.msamd.value_counts() > 1].index)
 drop_cert = set(df_agg.cert.value_counts()[df_agg.cert.value_counts() > 1].index)
 
@@ -261,10 +335,12 @@ subset = ['log_min_distance', 'ls_num', 'lti', 'ln_loanamout', 'ln_appincome', '
                'cb', 'ln_ta', 'ln_emp', 'num_branch', 'pop_area', 'density', 'hhi', 'ln_mfi']
 df_agg.dropna(subset = subset, inplace = True)
 
-#------------------------------------------------------------
-# Save df_agg
-# Make list of which columns to keep
+# Save (Use apache parquet to reduce file size)
+dd_agg = dd.from_pandas(df_agg, npartitions = num_cores)
+dd_agg.to_parquet(path = 'data_agg.parquet',\
+                   engine = 'pyarrow',\
+                   compression = 'snappy',\
+                   partition_on = ['date'],\
+                   write_metadata_file = True) 
 
-# Save
-df_main.to_csv('data_main.csv', index = False)
-df_agg.to_csv('data_agg.csv', index = False)
+#df_agg.to_csv('data_agg.csv', index = False)

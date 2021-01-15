@@ -19,6 +19,8 @@ os.chdir(r'D:\RUG\PhD\Materials_papers\2-Working_paper_competition')
 
 # Load packages
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -48,7 +50,7 @@ list_df_sod = []
 for year in range(start,end + 1):
     # Load the dataframe in a temporary frame
     df_sod_load = pd.read_csv(path_sod + file_sod.format(year),\
-                              usecols = vars_sod, dtype = dtypes_col_sod, thousands = ',')
+                              usecols = vars_sod, dtype = dtypes_col_sod, thousands = ',', encoding = 'ISO-8859-1')
     # Correct STCNTYBR
     df_sod_load['STCNTYBR'] = df_sod_load.STCNTYBR.str.zfill(5)
     
@@ -103,3 +105,7 @@ for var in vars_needed:
 # Save the dataframe
 #------------------------------------------------------------  
 df_sod.to_csv('Data/df_sod_wp2.csv')
+
+# Save as apache parquet file
+ap_sod = pa.Table.from_pandas(df_sod)
+pq.write_table(ap_sod, 'Data/df_sod_wp2.parquet')
