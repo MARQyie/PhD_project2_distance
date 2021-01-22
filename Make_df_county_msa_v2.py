@@ -38,7 +38,7 @@ for elem in statecodes:
     if elem in [3,7,14,43,52]:
         statecodes.remove(elem)
         
-states =[x.lower() for x in ["AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DC", "DE", "FL", "GA", 
+states =[x.lower() for x in ["AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "DC", "FL", "GA", 
           "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", 
           "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", 
           "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", 
@@ -48,16 +48,12 @@ list_df_load_2010 = []
 
 # Loop over all dfs
 for state, code in zip(states,statecodes):
-    ''' Loop over all state codes. Since the codes are not a perfect sequence,
-        we use a try-except structure.
-        
+    ''' Loop over all state codes.         
         Next we create a single fips variable.
     '''
-    try:
-        df_load_2000 = pd.read_csv(url2000.format(str(code).zfill(2), state), dtype = dtypes_centers, encoding = 'ISO-8859-1', names = columns_2000)
-        df_load_2010 = pd.read_csv(url2010.format(str(code).zfill(2)), dtype = dtypes_centers, encoding = 'ISO-8859-1')
-    except:
-        continue
+    df_load_2000 = pd.read_csv(url2000.format(str(code).zfill(2), state), dtype = dtypes_centers, encoding = 'ISO-8859-1', names = columns_2000)
+    df_load_2010 = pd.read_csv(url2010.format(str(code).zfill(2)), dtype = dtypes_centers, encoding = 'ISO-8859-1')
+
     
     df_load_2000['fips'] = df_load_2000.STATEFP + df_load_2000.COUNTYFP
     df_load_2000.drop(columns = ['STATEFP','COUNTYFP'], inplace = True)
@@ -113,11 +109,9 @@ list_df_center = []
 
 for year in range(4,19+1):
     if year < 10:
-        list_df_center.append(pd.concat([df_centers_2000, pd.DataFrame(['200{}'.format(year)] * df_centers_2000.shape[0],\
-                                                              columns = ['date'])], axis = 1, join = 'inner'))
+        list_df_center.append(df_centers_2000.assign(date = '200{}'.format(year)))
     else:
-        list_df_center.append(pd.concat([df_centers_2010, pd.DataFrame(['20{}'.format(year)] * df_centers_2010.shape[0],\
-                                                              columns = ['date'])], axis = 1, join = 'inner'))
+        list_df_center.append(df_centers_2010.assign(date = '20{}'.format(year)))
     
 df_centers_panel = pd.concat(list_df_center)
 

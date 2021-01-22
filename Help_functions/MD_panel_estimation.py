@@ -176,7 +176,7 @@ class Transformation:
                 self._FE = self._FE_cols[self._sepFE.split(' x ')].astype(str).agg('-'.join, axis = 1)
                 
                 return self
-            elif not self._boolCombFE: # has no FE combination
+            elif not any(self._boolCombFE): # has no FE combination
                 self._FE = self._FE_cols.copy()
                 
                 return self
@@ -654,7 +654,10 @@ class MultiDimensionalOLS(Metrics, Transformation):
             if self._FE_cols.shape[1] == 3:
                 fixed_effects = ['MSA-Year \& Lender'] + [np.nan] * (index.shape[0] - 1)
             elif self._FE_cols.shape[1] == 2:
-                fixed_effects = ['Year \& Lender'] + [np.nan] * (index.shape[0] - 1)
+                if self._FE_cols.columns[0] == 'fips':
+                    fixed_effects = ['FIPS \& Lender'] + [np.nan] * (index.shape[0] - 1)
+                else:   
+                    fixed_effects = ['Year \& Lender'] + [np.nan] * (index.shape[0] - 1)
             else:
                 fixed_effects = ['Lender'] + [np.nan] * (index.shape[0] - 1)
         else:

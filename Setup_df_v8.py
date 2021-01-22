@@ -4,7 +4,9 @@
     We use dask.dataframes to cut back on RAM-usage and utilize fast parallelization
     of loading the dataframes.
     
-    Final df: MSA-lender-level dataset per year
+    Final dfs: 
+        1) df_main is a loan-level dataset
+        2) df_agg is df_main aggregated at the MSAMD level.
 '''
 
 #------------------------------------------------------------
@@ -31,9 +33,10 @@ dask.config.set({'temporary_directory': 'D:/RUG/PhD/Materials_papers/2-Working_p
 import multiprocessing as mp # For parallelization
 from joblib import Parallel, delayed # For parallelization
 
-## Data storage
-import pyarrow as pa
-import pyarrow.parquet as pq
+## Parquet packages
+#import pyarrow as pa
+#import pyarrow.parquet as pq
+#import fastparquet 
 
 #------------------------------------------------------------
 # Parameters
@@ -170,16 +173,8 @@ lst_hmda = []
 for year in range(start, end + 1):
     dd_hmda = dd.read_csv('data_hmda_{}.csv'.format(year), dtype = {'respondent_id':'str','sex_4': 'float64','ln_appincome':'float64','ethnicity_0': 'int8', 'ethnicity_1': 'int8','ethnicity_2': 'int8','ethnicity_3': 'int8','ethnicity_4': 'int8','ethnicity_5': 'int8','loan_type_1': 'int8','loan_type_2': 'int8','loan_type_3': 'int8','loan_type_4': 'int8','sex_1': 'int8','sex_2': 'int8','sex_3': 'int8'})
     
-    # Subset data
-    dd_hmda = dd_hmda[(dd_hmda.loan_purpose == 1) & (dd_hmda.msamd != 0)]
-    
-    # Drop columns
-    if (year >= 2007):
-        dd_hmda = dd_hmda.drop(columns = ['sex_3','sex_4','population','minority_population',\
-                                'hud_median_family_income','tract_to_msamd_income',\
-                                'number_of_1_to_4_family_units'])
-    else:
-        dd_hmda = dd_hmda.drop(columns = ['sex_3','sex_4'])
+    # Drop population column
+    #dd_hmda = dd_hmda.drop('population', axis = 1)
     
     # Merge with df_sdilf
     dd_hmda = dd.merge(dd_hmda,\
@@ -216,15 +211,14 @@ dd_main = dd.concat(lst_hmda)
 
 # Save and compute the dd_main (prevent RAM overload)
 ## NOTE: We partition on date such that we get smaller and useful partitions
-dd_main.to_parquet(path = 'data_main.parquet',\
-                   engine = 'pyarrow',\
+dd_main.to_parquet(path = 'data_main_pre_clean1.parquet',\
+                   engine = 'fastparquet',\
                    compression = 'snappy',\
-                   partition_on = ['date'],\
-                   write_metadata_file = True)
+                   partition_on = ['date'])
     
 # Load dd_main
-dd_main = dd.read_parquet(path = 'data_main.parquet',\
-                       engine = 'pyarrow')
+dd_main = dd.read_parquet(path = 'data_main_pre_clean1.parquet',\
+                       engine = 'fastparquet')
 
 # Set dictionaries for local lender calculation
 dict_msamd = dict(dd_main.groupby('msamd').fips.unique().compute(scheduler = "threads"))
@@ -238,13 +232,12 @@ dd_main = dd_main[(dd_main.msamd.isin(drop_msamd)) & (dd_main.cert.isin(drop_cer
 npartitions_main = dd_main.npartitions
 
 # Compute main dataset and remove unneeded datasets
-dd_main.to_parquet(path = 'data_main.parquet',\
-                   engine = 'pyarrow',\
+dd_main.to_parquet(path = 'data_main_pre_clean2.parquet',\
+                   engine = 'fastparquet',\
                    compression = 'snappy',\
-                   partition_on = ['date'],\
-                   write_metadata_file = True)
-dd_main = dd.read_parquet(path = 'data_main.parquet',\
-                       engine = 'pyarrow')
+                   partition_on = ['date'])
+dd_main = dd.read_parquet(path = 'data_main_pre_clean2.parquet',\
+                       engine = 'fastparquet')
 
 del dd_hmda, lst_hmda, df_sdilf, df_fips, df_cert, df_mindist_2004, df_mindist_2010
 
@@ -252,35 +245,57 @@ del dd_hmda, lst_hmda, df_sdilf, df_fips, df_cert, df_mindist_2004, df_mindist_2
 # Add local lender variable and prelim cleaning
 #------------------------------------------------------------
 
-# Add SDI data
 # Add local (lender) variable
-df_certmsamd = dd_main.loc[:,['cert','msamd']].compute(scheduler = 'threads')
+dd_main['local'] = dd_main.apply(lambda x: 1 if any(item in dict_cert[x.cert] for item in dict_msamd[x.msamd]) else 0, axis = 1, meta = ('local','i4'))
+
+# Compute main dataset and remove unneeded datasets
+dd_main.to_parquet(path = 'data_main_pre_clean3.parquet',\
+                   engine = 'fastparquet',\
+                   compression = 'snappy',\
+                   partition_on = ['date'])
+dd_main = dd.read_parquet(path = 'data_main_pre_clean3.parquet',\
+                       engine = 'fastparquet')
+
+'''OLD
+lst_cert, list_msamd = np.array(dd_main.loc[:,['cert','msamd']].compute(scheduler = 'threads').T)
 
 if __name__ == '__main__':
-    local = Parallel(n_jobs = num_cores, prefer="threads")(delayed(findLocal)(row.cert, row.msamd) for index, row in df_certmsamd.iterrows()) 
+    local = Parallel(n_jobs = num_cores, prefer="threads")(delayed(findLocal)(cert, msamd) for cert, msamd in zip(lst_cert,list_msamd))
     
-dd_main['local'] = local
+## Transform to dd array
+df_local = pd.DataFrame(local, index = dd_main.index.compute(scheduler = 'threads').tolist(), columns = ['local'])
+                        
+## Add to dd_main
+test = dd_main.merge(df_local, left_index = True, right_index = True)
+    
+# Save to text file
+with open('local_lender.txt', 'w') as filehandle:
+    for listitem in local:
+        filehandle.write('%s\n' % listitem)'''
 
-## Drop na (variables before 2018)
+      
+# Drop na (variables before 2018)
 subset = ['log_min_distance', 'ls', 'lti', 'ln_loanamout', 'ln_appincome', 'subprime', \
                'cb', 'ln_ta', 'ln_emp', 'num_branch', 'pop_area', 'density', 'hhi']
-dd_main = dd_main.dropna(subset = subset)
+dd_main = dd_main.dropna(subset = subset) 
 
 # Save
 dd_main.to_parquet(path = 'data_main.parquet',\
-                   engine = 'pyarrow',\
+                   engine = 'fastparquet',\
                    compression = 'snappy',\
-                   partition_on = ['date'],\
-                   write_metadata_file = True)
+                   partition_on = ['date'])
 dd_main = dd.read_parquet(path = 'data_main.parquet',\
-                       engine = 'pyarrow')
+                       engine = 'fastparquet')
 
 #------------------------------------------------------------
 # Aggregate to MSA-lender level
 #------------------------------------------------------------
 
+# Select only originated loans
+df_orig = dd_main[dd_main.loan_originated == 1].compute(scheduler = 'threads')
+
 # Group the data and only select originated loans
-df_grouped = dd_main[dd_main.loan_originated == 1].groupby(['date','cert','msamd'])
+df_grouped = df_orig.groupby(['date','cert','msamd'])
 
 # 1) Aggregate portfolio-specific variables
 ## NOTE 'cb','ln_ta','ln_emp','num_branch' are only unique per date-cert group. Taking the mean of a date-cert-msamd gives us the same as a merge
@@ -336,11 +351,9 @@ subset = ['log_min_distance', 'ls_num', 'lti', 'ln_loanamout', 'ln_appincome', '
 df_agg.dropna(subset = subset, inplace = True)
 
 # Save (Use apache parquet to reduce file size)
-dd_agg = dd.from_pandas(df_agg, npartitions = num_cores)
-dd_agg.to_parquet(path = 'data_agg.parquet',\
-                   engine = 'pyarrow',\
+df_agg.to_parquet(path = 'data_agg.parquet',\
+                   engine = 'fastparquet',\
                    compression = 'snappy',\
-                   partition_on = ['date'],\
-                   write_metadata_file = True) 
+                   partition_on = ['date']) 
 
 #df_agg.to_csv('data_agg.csv', index = False)

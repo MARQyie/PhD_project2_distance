@@ -36,11 +36,10 @@ from joblib import Parallel, delayed
 # Set Parameters
 #------------------------------------------------------------
 
-start = 2017
+start = 2007
 end = 2019
 
-#num_cores = mp.cpu_count() 
-num_cores = 4
+num_cores = mp.cpu_count() 
 
 #------------------------------------------------------------
 # Load the data, clean and save
@@ -81,7 +80,22 @@ na_values = ['NA   ', 'NA ', '...',' ','NA  ','NA      ','NA     ','NA    ','NA'
 path_hmda_panel = r'D:/RUG/Data/Data_HMDA/Panel/'
 file_hmda_panel = r'{}_public_panel_csv.csv'
 
+## Make state code dictionary
+statecodes = list(range(1,56+1))
+
+for elem in statecodes:
+    if elem in [3,7,14,43,52]:
+        statecodes.remove(elem)
+        
+states =[x for x in ["AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DC", "DE", "FL", "GA", 
+          "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", 
+          "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", 
+          "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", 
+          "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"]]
+state_dict = dict(zip(states,statecodes))
+
 # Load data
+#------------------------------------------------------------
 ## Lender file
 df_lf = pd.read_stata(path_lf + file_lf, columns = vars_lf)
 
@@ -89,11 +103,11 @@ df_lf = pd.read_stata(path_lf + file_lf, columns = vars_lf)
 def cleanHMDA(year):
     #Load the dataframe in a temporary frame
     if year == 2004:
-        df_chunk = pd.read_fwf(path_hmda + file_hmda_04.format(year), widths = col_width_0406, names = col_names_0406, chunksize = 1e6, na_values = na_values, dtype = dtypes_col_hmda, header=None)
+        df_chunk = pd.read_fwf(path_hmda + file_hmda_04.format(year), widths = col_width_0406, names = col_names_0406, chunksize = 1e6, na_values = na_values, dtype = dtypes_col_hmda, header=None, compression = 'zip')
     elif year < 2007:
-        df_chunk = pd.read_fwf(path_hmda + file_hmda_0506.format(year), widths = col_width_0406, names = col_names_0406, chunksize = 1e6, na_values = na_values, dtype = dtypes_col_hmda, header=None)
+        df_chunk = pd.read_fwf(path_hmda + file_hmda_0506.format(year), widths = col_width_0406, names = col_names_0406, chunksize = 1e6, na_values = na_values, dtype = dtypes_col_hmda, header=None, compression = 'zip')
     elif year < 2018:
-        df_chunk = pd.read_csv(path_hmda + file_hmda_0717.format(year), index_col = 0, chunksize = 1e6, na_values = na_values, dtype = dtypes_col_hmda)
+        df_chunk = pd.read_csv(path_hmda + file_hmda_0717.format(year), index_col = 0, chunksize = 1e6, na_values = na_values, dtype = dtypes_col_hmda, compression = 'zip')
     else: # From 2018 onward structure of the data changes
         df_chunk = pd.read_csv(path_hmda + file_hmda_1819.format(year), index_col = 0, chunksize = 1e6, na_values = na_values, dtype = dtypes_col_hmda)
         df_panel = pd.read_csv(path_hmda_panel + file_hmda_panel.format(year))
@@ -135,7 +149,8 @@ def cleanHMDA(year):
             
             ## Format respondent_id column  (form arid_2017: remove agency code (first string), and zero fill. Replace -1 with non)
             ## NOTE Fill the missings with the tax codes. After visual check, some arid_2017 are missing. However, the tax_id corresponds to the resp_id pre 2018
-            chunk['respondent_id'] = chunk.apply(lambda x: x.tax_id if x.arid_2017 == '-1' else str(x.arid_2017)[1:], axis = 1).replace('-1',np.nan).str.zfill(10)
+            chunk['respondent_id'] = chunk.apply(lambda x: x.tax_id if x.arid_2017 == '-1' else\
+                                                 str(x.arid_2017)[1:], axis = 1).replace('-1',np.nan).str.zfill(10)
             
         # Filter data
         ## Remove credit unions and mortgage institutions, and remove NA in msamd
@@ -147,15 +162,32 @@ def cleanHMDA(year):
                          dropna(axis = 0, how = 'any', subset = ['msamd','loan_amount_000s','applicant_income_000s'])
                          
         ## Drop all purchased loans, denied preapproval requests and non-home purchase loans
+        ## NOTE: We only take loans for home purchase to reduce heterogeneity among loans. In general loans for 
+        ## home improvement are shorter-term and have lower loan amounts. Refinancing loans are an entire different
+        ## category of loans altogether
         chunk_filtered = chunk_filtered[(chunk_filtered.action_taken < 6) & (chunk_filtered.loan_purpose == 1)]
+        
+        ## Drop all negative and zero incomes
+        chunk_filtered = chunk_filtered[chunk_filtered.applicant_income_000s > 0]
         
         ## Make a fips column and remove separate state and county
         if year < 2018:
             chunk_filtered['fips'] = chunk_filtered['state_code'].str.zfill(2) + chunk_filtered['county_code'].str.zfill(3)
         else:
-            chunk_filtered['fips'] =  chunk_filtered['county_code'].str.zfill(5)
+            ## NOTE: we use numpy select to correct mistakes made in the county codes (aka when the state code part is missing)
+            conditions = [(chunk_filtered.county_code.astype(float) < 1001), (chunk_filtered.county_code.astype(float) >= 1001)]
+            choices  = [chunk_filtered.replace({'state_code':state_dict}).state_code.astype(str).str.zfill(2) + \
+                    chunk_filtered['county_code'].str.zfill(5).str[2:], chunk_filtered['county_code'].str.zfill(5)]
+            
+            chunk_filtered['fips'] = np.select(conditions, choices, default = chunk_filtered['county_code'].str.zfill(5))
+            
+
         chunk_filtered.drop(columns = ['state_code', 'county_code'], inplace = True)
         
+        ## Remove all unknown MSAMDs and FIPS
+        chunk_filtered = chunk_filtered[(chunk_filtered.msamd.astype(float) != 0) &\
+                      (chunk_filtered.msamd.astype(float) != 99999) & (chunk_filtered.fips.astype(float) != 99999)]
+            
         # Add variables
         ## Originated dummy
         chunk_filtered['loan_originated'] = (chunk_filtered.action_taken == 1) * 1
@@ -182,7 +214,8 @@ def cleanHMDA(year):
             chunk_filtered['subprime'] = (chunk_filtered.rate_spread > 0.0) * 1
         else:
             # NOTE: we can use swifter to speed up the process. Supported by peregrine?
-            lambda_subprime = lambda data: (data.rate_spread - 0.03) > 0.0 if data.lien_status == 1 else (data.rate_spread - 0.05) > 0.0 if data.lien_status == 2 else np.nan
+            lambda_subprime = lambda data: (data.rate_spread - 0.03) > 0.0 if data.lien_status == 1 else\
+                (data.rate_spread - 0.05) > 0.0 if data.lien_status == 2 else np.nan
             chunk_filtered['subprime'] = (chunk_filtered.apply(lambda_subprime, axis = 1)) * 1
         
         
@@ -210,7 +243,7 @@ def cleanHMDA(year):
         chunk_filtered[dummies_sex.columns] = dummies_sex
         
         ## Dummy co-applicant
-        chunk_filtered['coapp'] = (chunk_filtered.co_applicant_sex & chunk_filtered.co_applicant_ethnicity == 5) * 1
+        chunk_filtered['coapp'] = ((chunk_filtered.co_applicant_sex != 5) & (chunk_filtered.co_applicant_race_1 != 8)) * 1
                 
         ## Loan sale dummies
         chunk_filtered['ls'] = (chunk_filtered.purchaser_type.isin(list(range(1,9+1)) + [71, 72])) * 1
@@ -256,8 +289,6 @@ def cleanHMDA(year):
                     dummies_loan.columns.tolist() + dummies_sex.columns.tolist()
         elif year < 2018 and year >= 2007:
             columns = ['respondent_id', 'agency_code', 'loan_originated', 'loan_type', 'loan_purpose', 'msamd',\
-                   'population', 'minority_population',\
-                   'hud_median_family_income', 'tract_to_msamd_income', 'number_of_1_to_4_family_units',\
                    'fips', 'date', 'lti', 'ln_loanamout', 'ln_appincome',\
                    'subprime', 'lien', 'hoepa', 'owner', 'preapp', 'coapp','ls',\
                    'ls_gse', 'ls_priv', 'sec'] + dummies_ethnicity.columns.tolist() +\
@@ -265,8 +296,6 @@ def cleanHMDA(year):
         else:
             # Todo: add extra 2018-2019 variables
             columns = ['respondent_id', 'agency_code', 'loan_originated', 'loan_type', 'loan_purpose', 'msamd',\
-                   'population', 'minority_population',\
-                   'hud_median_family_income', 'tract_to_msamd_income', 'number_of_1_to_4_family_units',\
                    'fips', 'date', 'lti', 'ln_loanamout', 'ln_appincome',\
                    'subprime', 'lien', 'hoepa', 'owner', 'preapp', 'coapp','ls',\
                    'ls_gse', 'ls_priv', 'sec','rate_spread','ltv','loan_costs','points',\
@@ -290,4 +319,4 @@ def cleanHMDA(year):
     
 #
 if __name__ == '__main__':
-    Parallel(n_jobs=num_cores)(delayed(cleanHMDA)(year) for year in range(start,end + 1))
+    Parallel(n_jobs=num_cores, prefer = 'threads')(delayed(cleanHMDA)(year) for year in range(start,end + 1))

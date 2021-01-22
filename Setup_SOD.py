@@ -60,6 +60,9 @@ for year in range(start,end + 1):
     # Rename columns
     df_sod_load.rename(columns = {'stcntybr':'fips'}, inplace = True)
     
+    # Remove all branches with fips that > 56
+    df_sod_load = df_sod_load[df_sod_load.fips.astype(float) < 57000]
+    
     # Add a date var
     df_sod_load['date'] = year
     

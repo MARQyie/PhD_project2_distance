@@ -106,14 +106,14 @@ df_sod = pd.read_csv('df_sod_wp2.csv', index_col = 0, dtype = {'fips':'uint16'},
                      usecols = ['date','fips','cert'])
 
 # df SDI
-df_sdi = pd.read_csv('df_sdi_wp2.csv', usecols = ['date','cert'])
+df_sdi = pd.read_csv('df_sdi_wp2.csv', dtype = {'cert':'float'}, usecols = ['date','cert'])
 
 # df LF
 ## Prelims
 vars_lf = ['hmprid'] + ['CERT{}'.format(str(year)[2:4]) for year in range(start, end - 1)]
 
 ## Load df LF
-df_lf = pd.read_csv('hmdpanel17.csv', usecols = vars_lf)
+df_lf = pd.read_csv('hmdpanel17.csv', usecols = vars_lf, dtype = {'hmprid':'str'})
 
 ### reduce dimensions df_lf
 df_lf.dropna(how = 'all', subset = vars_lf[1:], inplace = True) # drop rows with all na

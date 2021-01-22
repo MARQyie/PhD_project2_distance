@@ -134,7 +134,7 @@ def get_distance_numba(coord1, coord2):
     for i in prange(n):
         
         # returns an array of length k
-        output[i] = haversine(coord1[i,0], coord1[i,1], coord2[i,0], coord1[2,1])
+        output[i] = haversine(coord1[i,0], coord1[i,1], coord2[i,0], coord2[i,1])
 
     return output
 
