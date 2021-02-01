@@ -1,15 +1,7 @@
 # Estimation results
 
 ''' This script uses the 3D_panel_estimation procedure to estimate the results of
-    the linear probability model in Working paper 2
-    
-    The following model is estimated:
-        1) FE: cert and date*msamd -- loan sales + controls -- Full sample
-    
-    Full sample: 2010 -- 2019
-    
-    Furthermore we do a Hausman specification test (OLS vs. FE), and test 
-    the variance inflation factor
+    the rate spread model in Working paper 2
     '''
 
 #------------------------------------------------------------
@@ -41,21 +33,37 @@ from Code_docs.Help_functions.MD_panel_estimation import MultiDimensionalOLS, Tr
 # Load the df
 #------------------------------------------------------------
 
-columns = ['date','fips','msamd','cert','log_min_distance','lti','ln_loanamout','ln_appincome',\
-           'subprime','lien','hoepa','owner','preapp', 'coapp','ethnicity_0',\
-           'ethnicity_1', 'ethnicity_2','ethnicity_3', 'ethnicity_4', 'ethnicity_5',\
-           'sex_1','sex_2','ls_ever','loan_originated','loan_type_2', 'loan_type_3', 'loan_type_4']
+columns = ['date','fips','msamd','cert','rate_spread','log_min_distance','local',\
+           'ls','ltv','lti','ln_loanamout','ln_appincome','int_only','balloon',\
+           'lien','mat','hoepa','owner','preapp', 'coapp','loan_originated',\
+           'loan_term']
 
 dd_main = dd.read_parquet(path = 'Data/data_main_clean.parquet',\
                        engine = 'fastparquet',\
                        columns = columns)
 
 # Add intercept and interaction term
+## Subset data
+dd_main = dd_main[(dd_main.date.astype(int) >= 2018) & (dd_main.loan_originated == 1)]
+
 ## Intercept
 dd_main['intercept'] = 1
 
-## Interaction term
-dd_main = dd_main.assign(log_min_distance_ls_ever = dd_main['log_min_distance'] * dd_main['ls_ever'])
+## Interaction terms
+dd_main = dd_main.assign(local_ls = dd_main['local'] * dd_main['ls'])
+dd_main = dd_main.assign(log_min_distance_ls = dd_main['log_min_distance'] * dd_main['ls'])
+
+## Remove outliers
+dd_main = dd_main[(dd_main.rate_spread > -150) & (dd_main.rate_spread < 10) &\
+                  (dd_main.loan_term < 2400) & (dd_main.ltv < 87)]
+
+# Transform to pandas df
+df = dd_main.compute(scheduler = 'threads')
+df.reset_index(drop = True, inplace = True)
+
+## Describe df
+df_desc = df.describe().T
+''' NOTE very little variation in HOEPA'''
 
 #------------------------------------------------------------
 # Hausman specification test
@@ -113,11 +121,9 @@ def VIFTest(df, x):
 #------------------------------------------------------------
 
 # Set variables
-y = 'loan_originated'
-x = ['log_min_distance','log_min_distance_ls_ever','lti','ln_loanamout',\
-     'ln_appincome','subprime','lien','owner','preapp', 'coapp',\
-     'ethnicity_1', 'ethnicity_2','ethnicity_3', 'ethnicity_4', 'ethnicity_5',\
-     'sex_1','loan_type_2', 'loan_type_3', 'loan_type_4']
+y = 'rate_spread'
+x_local = ['ls','local','local_ls','lti','ltv','ln_loanamout',\
+     'ln_appincome','int_only','balloon','mat','lien', 'coapp']
 
 # Set other parameters
 cov_type = 'clustered'
@@ -126,38 +132,41 @@ FE_cols_vars = ['fips','cert']
 how = 'fips, cert'
 
 # Set File names
-## OLS
-file = 'Results/lpm_results_{}.{}'
+file_local = 'Results/ratespread_results_local.{}'
+file_local_year = 'Results/ratespread_results_local_{}.{}'
 
 #------------------------------------------------------------
-# Run benchmark Model
+# Run Model
 #------------------------------------------------------------
-# Loop over all years
-for year in range(2004,2019+1):
+    
+# Run
+## Local
+results_local = MultiDimensionalOLS().fit(df[y], df[x_local],\
+                    cov_type = cov_type, cluster_cols = df[cluster_cols_var],\
+                    transform_data = True, FE_cols = df[FE_cols_vars], how = how)
+
+### Transform to pandas df
+df_results_local = results_local.to_dataframe()
+
+### Save to excel and csv
+df_results_local.to_excel(file_local.format('xlsx'))
+df_results_local.to_csv(file_local.format('csv'))
+
+del results_local
+
+## 2018 and 2019 separate
+for year in range(2018,2019+1):
 # Set df
-    df = dd_main[dd_main.date == year].compute(scheduler = 'threads')
-    df.reset_index(drop = True, inplace = True)
+    df_year = df[df.date == year]
     
     # Run
-    results_benchmark = MultiDimensionalOLS().fit(df[y], df[x],\
-                        cov_type = cov_type, cluster_cols = df[cluster_cols_var],\
-                        transform_data = True, FE_cols = df[FE_cols_vars], how = how)
+    results_yearly = MultiDimensionalOLS().fit(df_year[y], df_year[x_local],\
+                        cov_type = cov_type, cluster_cols = df_year[cluster_cols_var],\
+                        transform_data = True, FE_cols = df_year[FE_cols_vars], how = how)
     
-    ## OLS Benchmark
-    ### First demean the data (because we cannot add a constant)
-    #df_demean = df - df.mean()
-    
-    ### Run benchmark
-    #ols_benchmark = MultiDimensionalOLS().fit(df_demean[y], df_demean[x],\
-    #                cov_type = cov_type, cluster_cols = df[cluster_cols_var])
-    
-    # Hausman test
-    #haus_H, haus_pval, haus_dof = HausmanSpecificationTest(results_benchmark.params,\
-    #                              ols_benchmark.params, results_benchmark.cov,\
-    #                              ols_benchmark.cov)
-    
+   
     # Transform to pandas df
-    df_results_benchmark = results_benchmark.to_dataframe()
+    df_results_yearly = results_yearly.to_dataframe()
     
     # Add count for hausman pval, msamd en cert
     #msamd = df.msamd.nunique()
@@ -167,7 +176,9 @@ for year in range(2004,2019+1):
     #df_results_benchmark['cert'] = cert
     
     # Save to excel and csv
-    df_results_benchmark.to_excel(file.format(year,'xlsx'))
-    df_results_benchmark.to_csv(file.format(year,'csv'))
+    df_results_yearly.to_excel(file_local_year.format(year,'xlsx'))
+    df_results_yearly.to_csv(file_local_year.format(year,'csv'))
     
-    del df, results_benchmark#, ols_benchmark
+    del results_yearly#, ols_benchmark
+
+

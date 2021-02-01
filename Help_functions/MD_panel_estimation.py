@@ -155,7 +155,7 @@ class Transformation:
         if self._multFE:
             self._sepFE = self._how.split(', ')
         else:
-             self._sepFE = self._how.copy()
+             self._sepFE = self._how
         
         # Check whether there are combined FE
         if self._multFE:
@@ -651,6 +651,8 @@ class MultiDimensionalOLS(Metrics, Transformation):
             depvar_median_col = [self._depvar.median()] + [np.nan] * (index.shape[0] - 1)
             depvar_std_col = [self._depvar.std()] + [np.nan] * (index.shape[0] - 1)
         if not(self._FE_cols is None):
+            if self._FE_cols.shape[1] == 4:
+                fixed_effects = ['MSA-Year, FIPS \& Lender'] + [np.nan] * (index.shape[0] - 1)
             if self._FE_cols.shape[1] == 3:
                 fixed_effects = ['MSA-Year \& Lender'] + [np.nan] * (index.shape[0] - 1)
             elif self._FE_cols.shape[1] == 2:

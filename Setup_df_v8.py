@@ -287,6 +287,7 @@ dd_main.to_parquet(path = 'data_main.parquet',\
 dd_main = dd.read_parquet(path = 'data_main.parquet',\
                        engine = 'fastparquet')
 
+'''OLD
 #------------------------------------------------------------
 # Aggregate to MSA-lender level
 #------------------------------------------------------------
@@ -356,4 +357,4 @@ df_agg.to_parquet(path = 'data_agg.parquet',\
                    compression = 'snappy',\
                    partition_on = ['date']) 
 
-#df_agg.to_csv('data_agg.csv', index = False)
+#df_agg.to_csv('data_agg.csv', index = False) '''
