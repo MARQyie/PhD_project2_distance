@@ -201,3 +201,11 @@ ax.legend()
 plt.tight_layout()
 
 fig.savefig('Figures/Mean_distance_yearly_split.png')
+
+# Get mean distance trhough the years
+mean_distance = dd_main.groupby('date').min_distance.mean().compute()
+mean_distance.index = mean_distance.index.astype(int)
+mean_distance = mean_distance.sort_index(ascending = True)
+
+mean_distance.iloc[-1] - mean_distance.iloc[6]
+(mean_distance.iloc[-1] - mean_distance.iloc[6]) / mean_distance.iloc[6]

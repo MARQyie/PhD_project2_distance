@@ -19,16 +19,12 @@ import dask
 # Load the df
 #------------------------------------------------------------
 
-columns = ['date','msamd','date','loan_originated','log_min_distance', 'log_min_distance_cdd','min_distance',\
-           'min_distance_cdd','ls','ls_gse','ls_priv','sec','lti','ln_loanamout',\
+columns = ['date','msamd','fips','cert','date','loan_originated','log_min_distance', 'log_min_distance_cdd','min_distance',\
+           'min_distance_cdd','local','ls','ls_gse','ls_priv','sec','lti','ln_loanamout',\
            'ln_appincome','subprime','lien','owner','preapp', 'coapp',\
            'ethnicity_1', 'ethnicity_2','ethnicity_3', 'ethnicity_4',\
            'ethnicity_5','sex_1', 'loan_type_2', 'loan_type_3', 'loan_type_4','ln_ta',\
            'ln_emp', 'ln_num_branch','cb','rate_spread','ltv','int_only','balloon','mat','loan_term']
-
-dd_main = dd.read_parquet(path = 'Data/data_main_clean.parquet',\
-                       engine = 'fastparquet',\
-                       columns = columns)
 
 #------------------------------------------------------------
 # Subset dfs
@@ -36,60 +32,75 @@ dd_main = dd.read_parquet(path = 'Data/data_main_clean.parquet',\
 
 # Make full dataset
 ## All applications
-df_full_app = dd_main[columns[:-6]].compute()
+df_full_app = pd.read_parquet(path = 'Data/data_main_clean.parquet',\
+                       engine = 'fastparquet',\
+                       columns = columns)
 
 ## Only originations
-df_full_ori = dd_main[dd_main.loan_originated == 1][columns[:-6]].drop('loan_originated', axis = 1).compute()
+df_full_ori = df_full_app[df_full_app.loan_originated == 1].drop('loan_originated', axis = 1)
 
-# Make dataset >2017
-## Only originations
-# TODO
+## Only denied
+df_full_denied = df_full_app[df_full_app.loan_originated == 0].drop('loan_originated', axis = 1)
 
 #------------------------------------------------------------
 # Make table
 #------------------------------------------------------------
 
 # Get summary statistics
-ss_full = df_full[vars_needed].describe(percentiles = [.01, .05, .5, .95, .99]).T[['mean','50%','std']]
+## Full, all applications
+sumstat_full_app = df_full_app[columns[5:-6]].describe(percentiles = [.5]).T[['mean','50%','std']]
 
-''' # Turn on to check percentiles
-percentiles_df = df_full[vars_needed].describe(percentiles = np.arange(0.01, 1, 0.01)).T
+## Full, only originations and denied
+sumstat_full_ori = df_full_ori[columns[6:-6]].describe(percentiles = [.5]).T[['mean','50%','std']]
+sumstat_full_denied = df_full_denied[columns[6:-6]].describe(percentiles = [.5]).T[['mean','50%','std']]
+
+## >2017, only originations
 '''
-''' NOTES ON PERCENTILES
-    LS starts at 29%
-    ls GSE and LS PRIVE start at 58%
-    SEC starts at 98%
-    Both distances become positive at 15%
-    BANK about 53% of the lenders are banks (little over half)
-    Subprime starts at 68%
-'''
+columns_1819 = ['rate_spread','log_min_distance','local',\
+           'ls','ltv','lti','ln_loanamout','ln_appincome','int_only','balloon',\
+           'lien','mat','hoepa','owner','preapp', 'coapp','loan_originated',\
+           'loan_term']
+sumstat_full_ori_1819 = df_full_ori_1819[columns_1819].describe(percentiles = [.5]).T[['mean','50%','std']] '''
 
 # Add extra stats
-## MSA-Lender-Years
-ss_full = ss_full.append(pd.DataFrame({'mean':df_full.shape[0], 'std':np.nan}, index = ['MSA-lender-years']))
+## Full, all applications
+sumstat_full_app = sumstat_full_app.append(pd.DataFrame({'mean':df_full_app.shape[0], 'std':np.nan}, index = ['Observations'])) # MSA-Lender-Years
+sumstat_full_app = sumstat_full_app.append(pd.DataFrame({'mean':df_full_app.fips.nunique(), 'std':np.nan}, index = ['FIPS'])) # MSAs
+sumstat_full_app = sumstat_full_app.append(pd.DataFrame({'mean':df_full_app.msamd.nunique(), 'std':np.nan}, index = ['MSA'])) # MSAs
+sumstat_full_app = sumstat_full_app.append(pd.DataFrame({'mean':df_full_app.cert.nunique(), 'std':np.nan}, index = ['Lender'])) # Lenders
+sumstat_full_app = sumstat_full_app.append(pd.DataFrame({'mean':df_full_app.date.nunique(), 'std':np.nan}, index = ['Years'])) # Years
 
-## MSAs
-ss_full = ss_full.append(pd.DataFrame({'mean':df_full.msamd.nunique(), 'std':np.nan}, index = ['MSA']))
+## Full, only originations and denied
+sumstat_full_ori = sumstat_full_ori.append(pd.DataFrame({'mean':df_full_ori.shape[0], 'std':np.nan}, index = ['Observations'])) # MSA-Lender-Years
+sumstat_full_ori = sumstat_full_ori.append(pd.DataFrame({'mean':df_full_ori.fips.nunique(), 'std':np.nan}, index = ['FIPS'])) # MSAs
+sumstat_full_ori = sumstat_full_ori.append(pd.DataFrame({'mean':df_full_ori.msamd.nunique(), 'std':np.nan}, index = ['MSA'])) # MSAs
+sumstat_full_ori = sumstat_full_ori.append(pd.DataFrame({'mean':df_full_ori.cert.nunique(), 'std':np.nan}, index = ['Lender'])) # Lenders
+sumstat_full_ori = sumstat_full_ori.append(pd.DataFrame({'mean':df_full_ori.date.nunique(), 'std':np.nan}, index = ['Years'])) # Years
 
-## Lenders
-ss_full = ss_full.append(pd.DataFrame({'mean':df_full.cert.nunique(), 'std':np.nan}, index = ['Lender']))
+sumstat_full_denied = sumstat_full_denied.append(pd.DataFrame({'mean':df_full_denied.shape[0], 'std':np.nan}, index = ['Observations'])) # MSA-Lender-Years
+sumstat_full_denied = sumstat_full_denied.append(pd.DataFrame({'mean':df_full_denied.fips.nunique(), 'std':np.nan}, index = ['FIPS'])) # MSAs
+sumstat_full_denied = sumstat_full_denied.append(pd.DataFrame({'mean':df_full_denied.msamd.nunique(), 'std':np.nan}, index = ['MSA'])) # MSAs
+sumstat_full_denied = sumstat_full_denied.append(pd.DataFrame({'mean':df_full_denied.cert.nunique(), 'std':np.nan}, index = ['Lender'])) # Lenders
+sumstat_full_denied = sumstat_full_denied.append(pd.DataFrame({'mean':df_full_denied.date.nunique(), 'std':np.nan}, index = ['Years'])) # Years
 
-## Years
-ss_full = ss_full.append(pd.DataFrame({'mean':df_full.date.nunique(), 'std':np.nan}, index = ['Years']))
+## <2017, only originations
 
-# Change name of columns
-cols_full = ['Mean','Median','S.E.']
+# Make new df
+cols_df = ['All Applications','Originated','Denied']
+cols_sumstats = ['Mean','50\%','S.E.']
+cols = pd.MultiIndex.from_product([cols_df, cols_sumstats])
 
-ss_full.columns = cols_full
+index_names = ['Loan Originated','Distance (pop. weighted; log)', 'Distance (CDD; log)','Distance (pop. weighted; km)',\
+           'Distance (CDD; km)','Local','Sold','Sold to GSE','Sold to private','Securitized','LTI','Loan Value (log)',\
+           'Income (log)','Subprime','Lien','Owner Occ.','Pre-approved', 'Co-applicant',\
+           'Ethnicity 1', 'Ethnicity 2','Ethnicity 3', 'Ethnicity 4',\
+           'Ethnicity 5','Sex', 'Loan Type 1', 'Loan Type 2', 'Loan Type 3','Size (log)',\
+           'Employees (log)', 'Branches (log)','Bank','Observations','FIPS','MSA','Lender','Years']
 
-# Change index
-index_col = ['Distance (pop. weighted; log)', 'Distance (CDD; log)','Distance (pop. weighted; km)', 'Distance (CDD; km)', 'Loan Sales', \
-             'LS GSE', 'LS Private', 'Securitization',\
-               'LTI', 'Loan Value', 'Income', 'Subprime', 'Size', 'Employees',\
-               'Branches', 'Bank', 'Internet', 'Density', 'Population', 'MFI', 'HHI','MSA-lender-years',
-               'MSAs','Lenders','Years']
+sumstats = pd.concat([sumstat_full_app, sumstat_full_ori, sumstat_full_denied], axis = 1)
+sumstats.index = index_names
+sumstats.columns = cols
 
-ss_full.index = index_col
 
 #------------------------------------------------------------
 # To Latex
@@ -100,7 +111,7 @@ def resultsToLatex(results, caption = '', label = '', size_string = '\\scriptsiz
     # Prelim
     function_parameters = dict(na_rep = '',
                                index_names = True,
-                               column_format = 'p{3.5cm}' + 'p{1.25cm}' * results.shape[1],
+                               column_format = 'p{3.4cm}' + 'p{0.75cm}' * results.shape[1],
                                escape = False,
                                multicolumn = True,
                                multicolumn_format = 'c',
@@ -125,28 +136,27 @@ def resultsToLatex(results, caption = '', label = '', size_string = '\\scriptsiz
             + note_string + latex_table[location_note + len('\end{tabular}\n'):]
             
     # Add midrule above 'Observations'
-    if latex_table.find('\nMSA-lender-years') >= 0:
+    if latex_table.find('\nObservations') >= 0:
         size_midrule = '\\midrule'
-        location_mid = latex_table.find('\nMSA-lender-years')
+        location_mid = latex_table.find('\nObservations')
         latex_table = latex_table[:location_mid] + size_midrule + latex_table[location_mid:]
         
     # Add headers for dependent var, ls vars, control vars 
     ## Set strings
     from string import Template
-    template_firstsubheader = Template('\multicolumn{$numcols}{l}{\\textbf{$variable}}\\\\\n')
+    #template_firstsubheader = Template('\multicolumn{$numcols}{l}{\\textbf{$variable}}\\\\\n')
     template_subheaders = Template('& ' * results.shape[1] + '\\\\\n' + '\multicolumn{$numcols}{l}{\\textbf{$variable}}\\\\\n')
     
-    txt_distance = template_firstsubheader.substitute(numcols = results.shape[1] + 1, variable = 'Dependent Variable')
+    txt_distance = template_subheaders.substitute(numcols = results.shape[1] + 1, variable = 'Distance Variables')
     txt_ls = template_subheaders.substitute(numcols = results.shape[1] + 1, variable = 'Loan Sales Variables')
     txt_loan = template_subheaders.substitute(numcols = results.shape[1] + 1, variable = 'Loan Control Variables')
     txt_lend = template_subheaders.substitute(numcols = results.shape[1] + 1, variable = 'Lender Control Variables')
-    txt_msa = template_subheaders.substitute(numcols = results.shape[1] + 1, variable = 'MSA Control Variables')
     
     ## Get locations and insert strings
     location_distance = latex_table.find('Distance (pop. weighted; log)')
     latex_table = latex_table[:location_distance] + txt_distance + latex_table[location_distance:]
     
-    location_ls = latex_table.find('Loan Sales')
+    location_ls = latex_table.find('Sold')
     latex_table = latex_table[:location_ls] + txt_ls + latex_table[location_ls:]
     
     location_loan = latex_table.find('LTI')
@@ -155,9 +165,6 @@ def resultsToLatex(results, caption = '', label = '', size_string = '\\scriptsiz
     location_lend = latex_table.find('Size')
     latex_table = latex_table[:location_lend] + txt_lend + latex_table[location_lend:]
     
-    location_msa = latex_table.find('Internet')
-    latex_table = latex_table[:location_msa] + txt_msa + latex_table[location_msa:]    
-    
     # Makes sidewaystable
     if sidewaystable:
         latex_table = latex_table.replace('table','sidewaystable',2)
@@ -165,30 +172,116 @@ def resultsToLatex(results, caption = '', label = '', size_string = '\\scriptsiz
     return latex_table
 
 # Call function
-caption = 'Summary Statistics'
+caption = 'Summary Statistics Full Sample'
 label = 'tab:summary_statistics'
 size_string = '\\tiny \n'
-note = '\justify\n\\scriptsize{\\textit{Notes.} All variables are in logs except Loan Sales, Subprime, Bank, Internet, and HHI. For a description of all variables see subsection~\\ref{subsec:variable_description} and Table~\\ref{tab:variableconstruction}.}'
+note = '\justify\n\\scriptsize{\\textit{Notes.} For a description of all variables see subsection~\\ref{subsec:variable_description} and Table~\\ref{tab:variableconstruction}.}'
 
 ## Change data type of certain columns/rows
-ss_full = ss_full.round(decimals = 4)
-ss_full = ss_full.astype(str)
-ss_full.iloc[-4:,0] = ss_full.iloc[-4:,0].str[:-2]
-ss_full.iloc[-1,:] = ss_full.iloc[-1,:].str.replace('nan','')
-ss_full.iloc[-2,:] = ss_full.iloc[-2,:].str.replace('nan','')
-ss_full.iloc[-3,:] = ss_full.iloc[-3,:].str.replace('nan','')
-ss_full.iloc[-4,:] = ss_full.iloc[-4,:].str.replace('nan','')
-ss_full.iloc[3,:] = ss_full.iloc[3,:].astype(str).str.replace('nan','')
+sumstats.iloc[:-5,:] = sumstats.iloc[:-5,:].round(4)
+sumstats.iloc[-5:,0] = sumstats.iloc[-5:,0].astype(str).str[:-2]
+sumstats.iloc[-5:,3] = sumstats.iloc[-5:,3].astype(str).str[:-2]
+sumstats.iloc[-5:,6] = sumstats.iloc[-5:,6].astype(str).str[:-2]
+sumstats.iloc[6:10,-3:] = np.nan
 
-ss_full_latex = resultsToLatex(ss_full, caption, label,\
+sumstats_latex = resultsToLatex(sumstats, caption, label,\
                                  size_string = size_string, note_string = note)
 
 #------------------------------------------------------------
 # Save
 #------------------------------------------------------------
 
-ss_full.to_excel('Tables/Summary_statistics.xlsx')
+sumstats.to_excel('Tables/Summary_statistics_full.xlsx')
 
-text_ss_tot_latex = open('Tables/Summary_statistics.tex', 'w')
-text_ss_tot_latex.write(ss_full_latex)
+text_ss_tot_latex = open('Tables/Summary_statistics_full.tex', 'w')
+text_ss_tot_latex.write(sumstats_latex)
+text_ss_tot_latex.close()
+
+#------------------------------------------------------------
+# Summary Statistics > 2017
+#------------------------------------------------------------
+
+del df_full_app, df_full_denied
+
+# Load and setup data
+df_ori_1819 = df_full_ori[df_full_ori.date.astype(int) >= 2018]
+df_ori_1819 = df_ori_1819[(df_ori_1819.rate_spread > -150) & (df_ori_1819.rate_spread < 10) &\
+                  (df_ori_1819.loan_term < 2400) & (df_ori_1819.ltv < 87)]
+    
+# Get summary statistics
+## >2017, only originations
+sumstat_ori_1819 = df_ori_1819[columns[-6:]].describe(percentiles = [.5]).T[['mean','50%','std']]
+
+# Add extra stats
+## < 2017, only originations
+sumstat_ori_1819 = sumstat_ori_1819.append(pd.DataFrame({'mean':df_ori_1819.shape[0], 'std':np.nan}, index = ['Observations'])) # MSA-Lender-Years
+sumstat_ori_1819 = sumstat_ori_1819.append(pd.DataFrame({'mean':df_ori_1819.fips.nunique(), 'std':np.nan}, index = ['FIPS'])) # MSAs
+sumstat_ori_1819 = sumstat_ori_1819.append(pd.DataFrame({'mean':df_ori_1819.msamd.nunique(), 'std':np.nan}, index = ['MSA'])) # MSAs
+sumstat_ori_1819 = sumstat_ori_1819.append(pd.DataFrame({'mean':df_ori_1819.cert.nunique(), 'std':np.nan}, index = ['Lender'])) # Lenders
+sumstat_ori_1819 = sumstat_ori_1819.append(pd.DataFrame({'mean':df_ori_1819.date.nunique(), 'std':np.nan}, index = ['Years'])) # Years
+
+# Make df pretty
+index_names = ['Rate Spread', 'LTV', 'IO', 'Balloon', 'MAT', 'Loan Term','Observations','FIPS','MSA','Lender','Years']
+
+sumstat_ori_1819.index = index_names
+sumstat_ori_1819.columns = cols_sumstats
+
+# Set function
+def resultsToLatex(results, caption = '', label = '', size_string = '\\scriptsize \n',  note_string = None, sidewaystable = False):
+    # Prelim
+    function_parameters = dict(na_rep = '',
+                               index_names = True,
+                               column_format = 'p{4cm}' + 'p{1.5cm}' * results.shape[1],
+                               escape = False,
+                               multicolumn = True,
+                               multicolumn_format = 'c',
+                               caption = caption,
+                               label = label)
+  
+    # To Latex
+    latex_table = results.to_latex(**function_parameters)
+    
+    # Add table placement
+    location_place = latex_table.find('\begin{table}\n')
+    latex_table = latex_table[:location_place + len('\begin{table}\n') + 1] + '[th!]' + latex_table[location_place + len('\begin{table}\n') + 1:]
+    
+    # Add script size
+    location_size = latex_table.find('\centering\n')
+    latex_table = latex_table[:location_size + len('\centering\n')] + size_string + latex_table[location_size + len('\centering\n'):]
+    
+    # Add note to the table
+    if note_string is not None:
+        location_note = latex_table.find('\end{tabular}\n')
+        latex_table = latex_table[:location_note + len('\end{tabular}\n')]\
+            + note_string + latex_table[location_note + len('\end{tabular}\n'):]
+            
+    # Add midrule above 'Observations'
+    if latex_table.find('\nObservations') >= 0:
+        size_midrule = '\\midrule'
+        location_mid = latex_table.find('\nObservations')
+        latex_table = latex_table[:location_mid] + size_midrule + latex_table[location_mid:]
+        
+    # Makes sidewaystable
+    if sidewaystable:
+        latex_table = latex_table.replace('table','sidewaystable',2)
+    
+    return latex_table
+
+# Call function
+caption = 'Summary Statistics 2018--2019'
+label = 'tab:summary_statistics_1819'
+size_string = '\\scriptsize \n'
+note = '\justify\n\\scriptsize{\\textit{Notes.} For a description of all variables see subsection~\\ref{subsec:variable_description} and Table~\\ref{tab:variableconstruction}.}'
+
+## Change data type of certain columns/rows
+sumstat_ori_1819.iloc[:-5,:] = sumstat_ori_1819.iloc[:-5,:].round(4)
+sumstat_ori_1819.iloc[-5:,0] = sumstat_ori_1819.iloc[-5:,0].astype(str).str[:-2]
+
+sumstats_latex = resultsToLatex(sumstat_ori_1819, caption, label,\
+                                 size_string = size_string, note_string = note)
+
+sumstat_ori_1819.to_excel('Tables/Summary_statistics_1819.xlsx')
+
+text_ss_tot_latex = open('Tables/Summary_statistics_1819.tex', 'w')
+text_ss_tot_latex.write(sumstats_latex)
 text_ss_tot_latex.close()
