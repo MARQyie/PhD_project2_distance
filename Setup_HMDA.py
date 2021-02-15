@@ -248,7 +248,7 @@ def cleanHMDA(year):
         ## Loan sale dummies
         chunk_filtered['ls'] = (chunk_filtered.purchaser_type.isin(list(range(1,9+1)) + [71, 72])) * 1
         chunk_filtered['ls_gse'] = (chunk_filtered.purchaser_type.isin(range(1,4+1))) * 1
-        chunk_filtered['ls_priv'] = (chunk_filtered.purchaser_type.isin(list(range(1,9+1)) + [71, 72])) * 1
+        chunk_filtered['ls_priv'] = (chunk_filtered.purchaser_type.isin(list(range(6,9+1)) + [71, 72])) * 1
         chunk_filtered['sec'] = (chunk_filtered.purchaser_type == 5) * 1
         
         ## Variables > 

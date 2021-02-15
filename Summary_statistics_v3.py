@@ -20,7 +20,7 @@ import dask
 #------------------------------------------------------------
 
 columns = ['date','msamd','fips','cert','date','loan_originated','log_min_distance', 'log_min_distance_cdd','min_distance',\
-           'min_distance_cdd','local','ls','ls_gse','ls_priv','sec','lti','ln_loanamout',\
+           'min_distance_cdd','local','lssec_ever','ls_ever','sec_ever','ls','ls_gse','ls_priv','sec','lti','ln_loanamout',\
            'ln_appincome','subprime','lien','owner','preapp', 'coapp',\
            'ethnicity_1', 'ethnicity_2','ethnicity_3', 'ethnicity_4',\
            'ethnicity_5','sex_1', 'loan_type_2', 'loan_type_3', 'loan_type_4','ln_ta',\
@@ -91,7 +91,7 @@ cols_sumstats = ['Mean','50\%','S.E.']
 cols = pd.MultiIndex.from_product([cols_df, cols_sumstats])
 
 index_names = ['Loan Originated','Distance (pop. weighted; log)', 'Distance (CDD; log)','Distance (pop. weighted; km)',\
-           'Distance (CDD; km)','Local','Sold','Sold to GSE','Sold to private','Securitized','LTI','Loan Value (log)',\
+           'Distance (CDD; km)','Local','Loan Seller','Loan Seller (non-securitized)','Securitizer','Sold','Sold to GSE','Sold to private','Securitized','LTI','Loan Value (log)',\
            'Income (log)','Subprime','Lien','Owner Occ.','Pre-approved', 'Co-applicant',\
            'Ethnicity 1', 'Ethnicity 2','Ethnicity 3', 'Ethnicity 4',\
            'Ethnicity 5','Sex', 'Loan Type 1', 'Loan Type 2', 'Loan Type 3','Size (log)',\
@@ -156,7 +156,7 @@ def resultsToLatex(results, caption = '', label = '', size_string = '\\scriptsiz
     location_distance = latex_table.find('Distance (pop. weighted; log)')
     latex_table = latex_table[:location_distance] + txt_distance + latex_table[location_distance:]
     
-    location_ls = latex_table.find('Sold')
+    location_ls = latex_table.find('Loan Seller')
     latex_table = latex_table[:location_ls] + txt_ls + latex_table[location_ls:]
     
     location_loan = latex_table.find('LTI')
@@ -182,7 +182,7 @@ sumstats.iloc[:-5,:] = sumstats.iloc[:-5,:].round(4)
 sumstats.iloc[-5:,0] = sumstats.iloc[-5:,0].astype(str).str[:-2]
 sumstats.iloc[-5:,3] = sumstats.iloc[-5:,3].astype(str).str[:-2]
 sumstats.iloc[-5:,6] = sumstats.iloc[-5:,6].astype(str).str[:-2]
-sumstats.iloc[6:10,-3:] = np.nan
+sumstats.iloc[9:13,-3:] = np.nan
 
 sumstats_latex = resultsToLatex(sumstats, caption, label,\
                                  size_string = size_string, note_string = note)
