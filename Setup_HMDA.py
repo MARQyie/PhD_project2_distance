@@ -36,8 +36,8 @@ from joblib import Parallel, delayed
 # Set Parameters
 #------------------------------------------------------------
 
-start = 2007
-end = 2019
+start = 2006
+end = 2008
 
 num_cores = mp.cpu_count() 
 

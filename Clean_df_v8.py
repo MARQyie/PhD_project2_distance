@@ -209,3 +209,12 @@ mean_distance = mean_distance.sort_index(ascending = True)
 
 mean_distance.iloc[-1] - mean_distance.iloc[6]
 (mean_distance.iloc[-1] - mean_distance.iloc[6]) / mean_distance.iloc[6]
+
+#------------------------------------------------------------
+# Check why curves are similar
+df_cert_mean = dd_main[dd_main.loan_originated == 1].groupby(['date','cert']).log_min_distance.count().compute()
+
+df_cert_diff = df_cert_mean.groupby(level = 1).diff()
+df_cert_diff.dropna(inplace = True).sort_values(ascending = True, inplace = True)
+
+df_cert_diff.head(25)

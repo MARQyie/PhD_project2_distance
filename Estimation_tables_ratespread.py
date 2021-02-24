@@ -37,12 +37,11 @@ def estimationTable(df, show = 'pval', stars = False, col_label = 'Est. Results'
         '''
     # Prelims
     ## Set dictionary for index and columns
-    dictionary = {'ls':'Loan Sales',
-                  'log_min_distance':'Distance',
-                  'ls':'Loan Sold',
+    dictionary = {'log_min_distance':'Distance',
+                  'ls':'Loan Sold ($\\beta_1$)',
                   'log_min_distance_ls':'LS x Distance',
-                  'local':'Local',
-                  'local_ls':'Local X LS',
+                  'local':'Local ($\\beta_2$)',
+                  'local_ls':'Local X LS ($\\beta_3$)',
                   'perc_broadband':'Internet',
                   'lti':'LTI',
                   'ltv':'LTV',
@@ -188,7 +187,7 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
     
     ## Add note to the table
     # TODO: Add std, tval and stars option
-    note_string = '\justify\n\\scriptsize{\\textit{Notes.} P-value in parentheses. LS = Loan Sold, LTI = loan-to-income ratio, LTV = loan-to-value ratio, IO = Interest Only, MAT = Maturity loan 30 years and longer. The model is estimated with clustered standard errors on the MSA-level.}\n'
+    note_string = '\justify\n\\scriptsize{\\textit{Notes.} Estimation results of the rate spread model. The model is estimated with the within estimator and includes clustered standard errors on the MSA-level. P-value in parentheses. LS = Loan Sold, LTI = loan-to-income ratio, LTV = loan-to-value ratio, IO = Interest Only, MAT = Maturity loan 30 years and longer.}\n'
     location = results_latex.find('\end{tabular}\n')
     results_latex = results_latex[:location + len('\end{tabular}\n')] + note_string + results_latex[location + len('\end{tabular}\n'):]
     

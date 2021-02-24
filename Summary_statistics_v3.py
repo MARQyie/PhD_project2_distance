@@ -175,7 +175,7 @@ def resultsToLatex(results, caption = '', label = '', size_string = '\\scriptsiz
 caption = 'Summary Statistics Full Sample'
 label = 'tab:summary_statistics'
 size_string = '\\tiny \n'
-note = '\justify\n\\scriptsize{\\textit{Notes.} For a description of all variables see subsection~\\ref{subsec:variable_description} and Table~\\ref{tab:variableconstruction}.}'
+note = '\justify\n\\scriptsize{\\textit{Notes.} Summary statistics of the full sample. Mean, \%50, and S.E. stand for the mean, median and standard deviation, respectively. FIPS stands for Federal Information Processing Standard, which is a five-digit code that uniquely  identifies counties. For a description of all variables see subsection~\\ref{subsec:variable_description} and Table~\\ref{tab:variableconstruction}.}'
 
 ## Change data type of certain columns/rows
 sumstats.iloc[:-5,:] = sumstats.iloc[:-5,:].round(4)
@@ -271,7 +271,7 @@ def resultsToLatex(results, caption = '', label = '', size_string = '\\scriptsiz
 caption = 'Summary Statistics 2018--2019'
 label = 'tab:summary_statistics_1819'
 size_string = '\\scriptsize \n'
-note = '\justify\n\\scriptsize{\\textit{Notes.} For a description of all variables see subsection~\\ref{subsec:variable_description} and Table~\\ref{tab:variableconstruction}.}'
+note = '\justify\n\\scriptsize{\\textit{Notes.} Summary statistics of the variables starting in 2018. Mean, \%50, and S.E. stand for the mean, median and standard deviation, respectively. FIPS stands for Federal Information Processing Standard, which is a five-digit code that uniquely  identifies counties. For a description of all variables see subsection~\\ref{subsec:variable_description} and Table~\\ref{tab:variableconstruction}.}'
 
 ## Change data type of certain columns/rows
 sumstat_ori_1819.iloc[:-5,:] = sumstat_ori_1819.iloc[:-5,:].round(4)

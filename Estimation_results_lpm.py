@@ -115,7 +115,7 @@ def VIFTest(df, x):
 # Set variables
 y = 'loan_originated'
 x = ['log_min_distance','log_min_distance_ls_ever','lti','ln_loanamout',\
-     'ln_appincome','subprime','lien','owner','preapp', 'coapp',\
+     'ln_appincome','lien','owner','preapp', 'coapp',\
      'ethnicity_1', 'ethnicity_2','ethnicity_3', 'ethnicity_4', 'ethnicity_5',\
      'sex_1','loan_type_2', 'loan_type_3', 'loan_type_4']
 
@@ -143,28 +143,8 @@ for year in range(2004,2019+1):
                         cov_type = cov_type, cluster_cols = df[cluster_cols_var],\
                         transform_data = True, FE_cols = df[FE_cols_vars], how = how)
     
-    ## OLS Benchmark
-    ### First demean the data (because we cannot add a constant)
-    #df_demean = df - df.mean()
-    
-    ### Run benchmark
-    #ols_benchmark = MultiDimensionalOLS().fit(df_demean[y], df_demean[x],\
-    #                cov_type = cov_type, cluster_cols = df[cluster_cols_var])
-    
-    # Hausman test
-    #haus_H, haus_pval, haus_dof = HausmanSpecificationTest(results_benchmark.params,\
-    #                              ols_benchmark.params, results_benchmark.cov,\
-    #                              ols_benchmark.cov)
-    
     # Transform to pandas df
     df_results_benchmark = results_benchmark.to_dataframe()
-    
-    # Add count for hausman pval, msamd en cert
-    #msamd = df.msamd.nunique()
-    #cert = df.cert.nunique()
-    #df_results_benchmark['haus'] = haus_pval
-    #df_results_benchmark['msamd'] = msamd
-    #df_results_benchmark['cert'] = cert
     
     # Save to excel and csv
     df_results_benchmark.to_excel(file.format(year,'xlsx'))

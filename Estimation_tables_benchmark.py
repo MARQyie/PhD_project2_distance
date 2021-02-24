@@ -38,7 +38,7 @@ def estimationTable(df, show = 'pval', stars = False, col_label = 'Est. Results'
     # Prelims
     ## Set dictionary for index and columns
     dictionary = {'log_min_distance':'Distance',
-                  'ls':'Loan Sold',
+                  'ls':'Loan Sold ($\\beta$)',
                   'log_min_distance_ls':'LS x Distance',
                   'local':'Local',
                   'local_ls':'Local X LS',
@@ -189,7 +189,7 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
     
     ## Add note to the table
     # TODO: Add std, tval and stars option
-    note_string = '\justify\n\\scriptsize{\\textit{Notes.} P-value in parentheses. LTI = loan-to-income ratio. The model is estimated with clustered standard errors on the MSA-level.}\n'
+    note_string = '\justify\n\\scriptsize{\\textit{Notes.} Estimation results of the distance model. The model is estimated with the within estimator and includes clustered standard errors on the MSA-level. P-value in parentheses. P-value in parentheses. LTI = loan-to-income ratio. The model is estimated with clustered standard errors on the MSA-level.}\n'
     location = results_latex.find('\end{tabular}\n')
     results_latex = results_latex[:location + len('\end{tabular}\n')] + note_string + results_latex[location + len('\end{tabular}\n'):]
     

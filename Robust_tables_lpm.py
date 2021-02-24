@@ -38,9 +38,15 @@ def estimationTable(df, show = 'pval', stars = False, col_label = 'Est. Results'
     # Prelims
     ## Set dictionary for index and columns
     dictionary = {'ls_num':'Loan Sales',
-                  'log_min_distance':'Distance ($\\theta_1$)',
+                  'log_min_distance':'Distance',
+                  'log_min_distance_cdd':'Distance (CDD)',
+                  'local':'Local',
                   'ls_ever':'Loan Seller',
-                  'log_min_distance_ls_ever':'LS x Distance ($\\theta_2$)',
+                  'log_min_distance_ls_ever':'LS x Distance',
+                  'log_min_distance_cdd_ls_ever':'LS x Distance (CDD)',
+                  'local_ls_ever':'LS x Local',
+                  'suprime_ls_ever':'LS X Subprime',
+                  'suprime_log_min_distance':'Subprime x Distance',
                   'perc_broadband':'Internet',
                   'lti':'LTI',
                   'ln_loanamout':'Loan Value',
@@ -184,7 +190,7 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
     
     ## Add note to the table
     # TODO: Add std, tval and stars option
-    note_string = '\justify\n\\scriptsize{\\textit{Notes.} Estimation results of the linear probability model. The model is estimated with the within estimator and includes clustered standard errors on the MSA-level. P-value in parentheses. LTI = loan-to-income ratio, LS = Loan Seller.}\n'
+    note_string = '\justify\n\\scriptsize{\\textit{Notes.} Robustness check of the linear probability model. The model is estimated with the within estimator and includes clustered standard errors on the MSA-level. P-value in parentheses. LTI = loan-to-income ratio, LS = Loan Seller.}\n'
     location = results_latex.find('\end{tabular}\n')
     results_latex = results_latex[:location + len('\end{tabular}\n')] + note_string + results_latex[location + len('\end{tabular}\n'):]
     
@@ -195,105 +201,66 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
 # Call concatResults
 #------------------------------------------------------------
 # NOTE Since we have 16 results tables, we split it into two separate tables
-    
-# Set path list
-path_list0411 = ['Results/lpm_results_{}.csv'.format(year) for year in range(2004,2011+1)]
-path_list1219 = ['Results/lpm_results_{}.csv'.format(year) for year in range(2012,2019+1)]
 
+# Set path lists
+path_cdd_list0411 = ['Robustness_checks/lpm_robust_cdd_{}.csv'.format(year) for year in range(2004,2011+1)]
+path_cdd_list1219 = ['Robustness_checks/lpm_robust_cdd_{}.csv'.format(year) for year in range(2012,2019+1)]
+
+path_local_list0411 = ['Robustness_checks/lpm_robust_local_{}.csv'.format(year) for year in range(2004,2011+1)]
+path_local_list1219 = ['Robustness_checks/lpm_robust_local_{}.csv'.format(year) for year in range(2012,2019+1)]
+
+# Set column labels
 col_label0411 = ['({})'.format(year) for year in range(2004,2011+1)]
 col_label1219 = ['({})'.format(year) for year in range(2012,2019+1)]
 
-# Set title and label
-caption0411 = 'Estimation Results Linear Probability Model (2004-2011)'
-label0411 = 'tab:results_lpm_0411'
+# Set titles and labels
+caption_cdd_0411 = 'Robustness Linear Probability Model -- CDD Distance (2004-2011)'
+label_cdd_0411 = 'tab:robust_cdd_lpm_0411'
+caption_cdd_1219 = 'Robustness Linear Probability Model -- CDD Distance  (2012-2019)'
+label_cdd_1219 = 'tab:robust_cdd_lpm_1219'
 
-caption1219 = 'Estimation Results Linear Probability Model (2012-2019)'
-label1219 = 'tab:results_lpm_1219'
+caption_local_0411 = 'Robustness Linear Probability Model -- Local (2004-2011)'
+label_local_0411 = 'tab:robust_local_lpm_0411'
+caption_local_1219 = 'Robustness Linear Probability Model -- Local  (2012-2019)'
+label_local_1219 = 'tab:robust_local_lpm_1219'
 
 # Call function
-# TODO: sidewards table
-df_results0411, latex_results0411 = concatResults(path_list0411, col_label = col_label0411,\
-                                                  caption = caption0411, label = label0411)
+df_results_cdd_0411, latex_results_cdd_0411 = concatResults(path_cdd_list0411, col_label = col_label0411,\
+                                                  caption = caption_cdd_0411, label = label_cdd_0411)
+df_results_cdd_1219, latex_results_cdd_1219 = concatResults(path_cdd_list1219, col_label = col_label1219,\
+                                                  caption = caption_cdd_1219, label = label_cdd_1219)
 
-df_results1219, latex_results1219 = concatResults(path_list1219, col_label = col_label1219,\
-                                                  caption = caption1219, label = label1219)
+df_results_local_0411, latex_results_local_0411 = concatResults(path_local_list0411, col_label = col_label0411,\
+                                                  caption = caption_local_0411, label = label_local_0411)
+df_results_local_1219, latex_results_local_1219 = concatResults(path_local_list1219, col_label = col_label1219,\
+                                                  caption = caption_local_1219, label = label_local_1219)
 
-#------------------------------------------------------------
 # Save df and latex file
 #------------------------------------------------------------
 
-df_results0411.to_csv('Results/Table_results_lpm0411.csv')
+df_results_cdd_0411.to_csv('Robustness_checks/Table_robust_cdd_lpm0411.csv')
 
-text_file_latex_results = open('Results/Table_results_lpm0411.tex', 'w')
-text_file_latex_results.write(latex_results0411)
+text_file_latex_results = open('Robustness_checks/Table_robust_cdd_lpm0411.tex', 'w')
+text_file_latex_results.write(latex_results_cdd_0411)
 text_file_latex_results.close()
 
-df_results1219.to_csv('Results/Table_results_lpm1219.csv')
+df_results_cdd_1219.to_csv('Robustness_checks/Table_robust_cdd_lpm1219.csv')
 
-text_file_latex_results = open('Results/Table_results_lpm1219.tex', 'w')
-text_file_latex_results.write(latex_results1219)
+text_file_latex_results = open('Robustness_checks/Table_robust_cdd_lpm1219.tex', 'w')
+text_file_latex_results.write(latex_results_cdd_1219)
 text_file_latex_results.close()
 
-#------------------------------------------------------------
-# Plot estimates log_min_distance and log_min_distance_ls_ever
-#------------------------------------------------------------
+df_results_local_0411.to_csv('Robustness_checks/Table_robust_local_lpm0411.csv')
 
-# set plotting function
-def PlotParams(params, std, param_names, file_name, aplha = 0.05):
-    global dictionary
-    
-    for var in range(len(params)):
-        # Set fig size
-        fig, ax = plt.subplots(figsize=(10,8))
-        
-        # Plot QR
-        x_axis = list(range(2004,2019+1))
-        ## Params
-        ax.plot(x_axis, params[var], color = 'black')
-        
-        ## Confidence interval (15%)
-        ciub = [params[var][i] + 1.960 * std[var][i] for i in range(len(params[var]))]
-        cilb = [params[var][i] - 1.960 * std[var][i] for i in range(len(params[var]))]
-        
-        ax.plot(x_axis, ciub, color = 'steelblue')
-        ax.plot(x_axis, cilb, color = 'steelblue')
-        ax.fill_between(x_axis, ciub,\
-                        cilb, color = 'deepskyblue', alpha = 0.3)
-               
-        ## Accentuate y = 0.0 
-        ax.axhline(0, color = 'darkred', alpha = 0.75)
-        
-        # Round yticks
-        ax.set_yticklabels(ax.get_yticks(), rotation=90, va = 'center')
-        ax.yaxis.set_major_formatter(FormatStrFormatter('%0.3f'))
-        
-        # Fix layout
-        ax.set_xlim(2004, 2019)
-        ax.set_xlabel('Year')
-        ax.set_ylabel('Parameter Estimate')
-        plt.tight_layout()
-        plt.savefig('Figures\{}_{}.png'.format(file_name, param_names[var].replace(" ", "_")))
-        
-        plt.close()
+text_file_latex_results = open('Robustness_checks/Table_robust_local_lpm0411.tex', 'w')
+text_file_latex_results.write(latex_results_local_0411)
+text_file_latex_results.close()
 
-# Load data and append to list
-df_lst = []
-for year in range(2004,2019+1):
-    df_lst.append(pd.read_csv('Results/lpm_results_{}.csv'.format(year), index_col = 0))
-    
-# Set params and std list
-params = [table.loc[['log_min_distance','log_min_distance_ls_ever'],'params'] for table in df_lst]
-stds = [table.loc[['log_min_distance','log_min_distance_ls_ever'],'std'] for table in df_lst]
+df_results_local_1219.to_csv('Robustness_checks/Table_robust_local_lpm1219.csv')
 
-## Change shape of the lists
-params = [[params[i][0] for i in range(len(params))],[params[i][1] for i in range(len(params))]]
-stds = [[stds[i][0] for i in range(len(stds))],[stds[i][1] for i in range(len(stds))]]
+text_file_latex_results = open('Robustness_checks/Table_robust_local_lpm1219.tex', 'w')
+text_file_latex_results.write(latex_results_local_1219)
+text_file_latex_results.close()
 
-# Plot
-## Prelims
-param_names = ['Distance','LS X Distance']
-file_name = 'Estimates_lpm'
 
-## Plot
-# TODO label axes
-PlotParams(params, stds, param_names, file_name)
+
