@@ -35,7 +35,7 @@ sns.set(style = 'whitegrid', font_scale = 2.5)
 #------------------------------------------------------------
 
 columns = ['date','fips','msamd','cert','log_min_distance','ls','loan_originated',\
-            'ln_ta','ln_emp','ln_num_branch','cb','ln_loanamout']
+            'ln_ta','ln_emp','ln_num_branch','cb','ln_loanamout','local','population']
 
 dd_main = dd.read_parquet(path = 'Data/data_main_clean.parquet',\
                        engine = 'fastparquet',\
@@ -131,7 +131,7 @@ df_post_qrest = df_post[~df_post.cert.isin(cert_change_q01)].describe(percentile
 df['q_distance'] = pd.qcut(df.log_min_distance, [0, .6, .7, .8, .9, 1.], labels = [0, 1, 2, 3, 4])
 df['q_distance'] = df['q_distance'].astype(int)
 
-df_dist = df.groupby(['date','q_distance']).log_min_distance.mean()
+df_dist = df.groupby(['date','q_distance']).log_min_distance.count()
 df_dist = df_dist.unstack(level = 1)
 df_dist = df_dist.sort_index(ascending = True)
 
@@ -139,8 +139,8 @@ df_dist = df_dist.sort_index(ascending = True)
 labels = ['<60','60-70','70-80','80-90','>90']
 
 fig, ax = plt.subplots(figsize=(14, 8))
-ax.set(xlabel='Year', ylabel = 'Log distance (km)')
-for col, label in zip(df_dist.iloc[:,1:].iteritems(), labels[1:]):
+ax.set(xlabel='Year', ylabel = 'Count')
+for col, label in zip(df_dist.iteritems(), labels):
     ax.plot(col[1], label = label)
 
 ax.axvspan(2007,2009, alpha = 0.5, color = 'lightgray')
@@ -198,3 +198,161 @@ ax.legend()
 plt.tight_layout()
 
 '''NOTE: Bearly any differences '''
+
+# On bank
+df_cb_mean = df.groupby(['date','cb']).log_min_distance.mean()
+df_cb_mean = df_cb_mean.unstack(level = 1)
+df_cb_mean = df_cb_mean.sort_index(ascending = True)
+
+df_cb_count = df.groupby(['date','cb']).log_min_distance.count()
+df_cb_count = df_cb_count.unstack(level = 1)
+df_cb_count = df_cb_count.sort_index(ascending = True)
+
+df_cb_ls_mean = df.groupby(['date','cb','ls']).log_min_distance.mean()
+df_cb_ls_mean = df_cb_ls_mean.unstack(level = [1,2])
+df_cb_ls_mean = df_cb_ls_mean.sort_index(ascending = True)
+
+# plot
+labels = ['thrift','bank']
+
+fig, ax = plt.subplots(figsize=(14, 8))
+ax.set(xlabel='Year', ylabel = 'Mean')
+for col, label in zip(df_cb_mean.iteritems(), labels):
+    ax.plot(col[1], label = label)
+
+ax.axvspan(2007,2009, alpha = 0.5, color = 'lightgray')
+ax.set_xlim(2004, 2019)
+ax.legend()
+plt.tight_layout()
+'''NOTE: Huge drop in thrifts'''
+
+fig, ax = plt.subplots(figsize=(14, 8))
+ax.set(xlabel='Year', ylabel = 'Count')
+for col, label in zip(df_cb_count.iteritems(), labels):
+    ax.plot(col[1], label = label)
+
+ax.axvspan(2007,2009, alpha = 0.5, color = 'lightgray')
+ax.set_xlim(2004, 2019)
+ax.legend()
+plt.tight_layout()
+'''NOTE: Thifts makes most of the loans'''
+
+labels = ['thrift: not sold','thrift: sold','bank: not sold', 'bank: sold']
+
+fig, ax = plt.subplots(figsize=(14, 8))
+ax.set(xlabel='Year', ylabel = 'Mean')
+for col, label in zip(df_cb_ls_mean.iteritems(), labels):
+    ax.plot(col[1], label = label)
+
+ax.axvspan(2007,2009, alpha = 0.5, color = 'lightgray')
+ax.set_xlim(2004, 2019)
+ax.legend()
+plt.tight_layout()
+'''NOTE: Thifts makes most of the loans'''
+
+# On local
+df_local_mean = df.groupby(['date','local']).log_min_distance.mean()
+df_local_mean = df_local_mean.unstack(level = 1)
+df_local_mean = df_local_mean.sort_index(ascending = True)
+
+df_local_count = df.groupby(['date','local']).log_min_distance.count()
+df_local_count = df_local_count.unstack(level = 1)
+df_local_count = df_local_count.sort_index(ascending = True)
+
+# plot
+labels = ['Remote','Local']
+
+fig, ax = plt.subplots(figsize=(14, 8))
+ax.set(xlabel='Year', ylabel = 'Mean')
+for col, label in zip(df_local_mean.iteritems(), labels):
+    ax.plot(col[1], label = label)
+
+ax.axvspan(2007,2009, alpha = 0.5, color = 'lightgray')
+ax.set_xlim(2004, 2019)
+ax.legend()
+plt.tight_layout()
+'''NOTE: No big drops'''
+
+fig, ax = plt.subplots(figsize=(14, 8))
+ax.set(xlabel='Year', ylabel = 'Count')
+for col, label in zip(df_local_count.iteritems(), labels):
+    ax.plot(col[1], label = label)
+
+ax.axvspan(2007,2009, alpha = 0.5, color = 'lightgray')
+ax.set_xlim(2004, 2019)
+ax.legend()
+plt.tight_layout()
+'''NOTE: Larger drop in Remote loans'''
+
+# On jumbo
+df['jumbo'] = (np.exp(df.ln_loanamout) > 360) * 1
+
+df_jumbo_mean = df.groupby(['date','jumbo']).log_min_distance.mean()
+df_jumbo_mean = df_jumbo_mean.unstack(level = 1)
+df_jumbo_mean = df_jumbo_mean.sort_index(ascending = True)
+
+df_jumbo_count = df.groupby(['date','jumbo']).log_min_distance.count()
+df_jumbo_count = df_jumbo_count.unstack(level = 1)
+df_jumbo_count = df_jumbo_count.sort_index(ascending = True)
+
+# plot
+labels = ['conventional','jumbo']
+
+fig, ax = plt.subplots(figsize=(14, 8))
+ax.set(xlabel='Year', ylabel = 'Mean')
+for col, label in zip(df_jumbo_mean.iteritems(), labels):
+    ax.plot(col[1], label = label)
+
+ax.axvspan(2007,2009, alpha = 0.5, color = 'lightgray')
+ax.set_xlim(2004, 2019)
+ax.legend()
+plt.tight_layout()
+'''NOTE: Similar'''
+
+fig, ax = plt.subplots(figsize=(14, 8))
+ax.set(xlabel='Year', ylabel = 'Count')
+for col, label in zip(df_jumbo_count.iteritems(), labels):
+    ax.plot(col[1], label = label)
+
+ax.axvspan(2007,2009, alpha = 0.5, color = 'lightgray')
+ax.set_xlim(2004, 2019)
+ax.legend()
+plt.tight_layout()
+'''NOTE: Expected'''
+
+# On population
+df['q_population'] = pd.qcut(df.population, [0, .2, .4, .6, .8, 1], labels = [0, 1, 2, 3, 4])
+df['q_population'] = df['q_population'].astype(int)
+
+df_population_mean = df.groupby(['date','q_population']).log_min_distance.mean()
+df_population_mean = df_population_mean.unstack(level = 1)
+df_population_mean = df_population_mean.sort_index(ascending = True)
+
+df_population_count = df.groupby(['date','q_population']).log_min_distance.count()
+df_population_count = df_population_count.unstack(level = 1)
+df_population_count = df_population_count.sort_index(ascending = True)
+
+# plot
+labels = ['<20','20-40','40-60','60-80','>80']
+
+fig, ax = plt.subplots(figsize=(14, 8))
+ax.set(xlabel='Year', ylabel = 'Mean')
+for col, label in zip(df_population_mean.iteritems(), labels):
+    ax.plot(col[1], label = label)
+
+ax.axvspan(2007,2009, alpha = 0.5, color = 'lightgray')
+ax.set_xlim(2004, 2019)
+ax.legend()
+plt.tight_layout()
+'''NOTE: Biggest drop in top 20%'''
+
+fig, ax = plt.subplots(figsize=(14, 8))
+ax.set(xlabel='Year', ylabel = 'Count')
+for col, label in zip(df_population_count.iteritems(), labels):
+    ax.plot(col[1], label = label)
+
+ax.axvspan(2007,2009, alpha = 0.5, color = 'lightgray')
+ax.set_xlim(2004, 2019)
+ax.legend()
+plt.tight_layout()
+'''NOTE: Nothing special'''
