@@ -36,8 +36,8 @@ from joblib import Parallel, delayed
 # Set Parameters
 #------------------------------------------------------------
 
-start = 2006
-end = 2008
+start = 2017
+end = 2019
 
 num_cores = mp.cpu_count() 
 
@@ -279,6 +279,12 @@ def cleanHMDA(year):
             
             ### Maturity mortgage > 30 years
             chunk_filtered['mat'] = (chunk_filtered.loan_term >= 360) * 1
+            
+            ### Automated Underwriting System dummy
+            chunk_filtered['automated'] = (chunk_filtered['aus-1'] < 6) * 1
+            
+            ### Credit Scoring Model dummy
+            chunk_filtered['csm'] = (chunk_filtered.applicant_credit_score_type < 9) * 1
            
         # Drop unneeded columns
         if year < 2018 and year < 2007:
@@ -294,13 +300,12 @@ def cleanHMDA(year):
                    'ls_gse', 'ls_priv', 'sec'] + dummies_ethnicity.columns.tolist() +\
                     dummies_loan.columns.tolist() + dummies_sex.columns.tolist()
         else:
-            # Todo: add extra 2018-2019 variables
             columns = ['respondent_id', 'agency_code', 'loan_originated', 'loan_type', 'loan_purpose', 'msamd',\
                    'fips', 'date', 'lti', 'ln_loanamout', 'ln_appincome',\
                    'subprime', 'lien', 'hoepa', 'owner', 'preapp', 'coapp','ls',\
                    'ls_gse', 'ls_priv', 'sec','rate_spread','ltv','loan_costs','points',\
                    'ori_charges','lender_credit','loan_term','neg_amor','mat',\
-                   'int_only','balloon'] + dummies_ethnicity.columns.tolist() +\
+                   'int_only','balloon','automated','csm'] + dummies_ethnicity.columns.tolist() +\
                     dummies_loan.columns.tolist() + dummies_sex.columns.tolist()
         
         chunk_filtered = chunk_filtered[columns]

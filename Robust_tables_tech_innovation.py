@@ -38,18 +38,19 @@ def estimationTable(df, show = 'pval', stars = False, col_label = 'Est. Results'
     # Prelims
     ## Set dictionary for index and columns
     dictionary = {'log_min_distance':'Distance',
-                  'log_min_distance_cdd':'Distance (CDD)',
                   'ls':'Loan Sold',
+                  'ls_gse':'LS GSE',
+                  'ls_priv':'LS Private',
+                  'sec':'Securitization',
                   'ls_ever':'Loan Seller',
                   'log_min_distance_ls':'LS x Distance',
-                  'log_min_distance_cdd_ls':'LS x Distance (CDD)',
                   'local':'Local',
                   'local_ls':'Local X LS',
-                  'remote':'Remote ',
-                  'remote_ls':'Remote X LS',
-                  'local_ls_ever':'Local X Loan Seller',
-                  'remote_ls_ever':'Remote X Loan Seller',
-                  'perc_broadband':'Internet',
+                  'dailup':'Dail-up',
+                  'broadband':'Broadband',
+                  'noint':'No Internet',
+                  'automated':'Automated',
+                  'csm':'CSM',
                   'lti':'LTI',
                   'ltv':'LTV',
                   'ln_loanamout':'Loan Value',
@@ -137,7 +138,7 @@ def resultsToLatex(results, caption = '', label = ''):
     # Prelim
     function_parameters = dict(na_rep = '',
                                index_names = False,
-                               column_format = 'p{3cm}' + 'p{2cm}' * results.shape[1],
+                               column_format = 'p{2.5cm}' + 'p{1cm}' * results.shape[1],
                                escape = False,
                                multicolumn = True,
                                multicolumn_format = 'c',
@@ -155,6 +156,9 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
     for df_path, lab in zip(path_list, col_label):
         # Read df
         df = pd.read_csv(df_path, index_col = 0, dtype = {'nobs':'str'})
+        df['nobs'] = df.nobs.str[:-2]
+        if '1319' in df_path:
+            df['fixed effects'] = 'MSA-year, FIPS \& Lender'
     
         # Call estimationTable and append to list
         list_of_results.append(estimationTable(df, show = 'pval', stars = False,\
@@ -165,13 +169,13 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
     
     # Order results
     ## Get column indexes that are not in fist column and insert in index column 0
-    missing_cols = [var for i in range(0,len(list_of_results)-1,1) for var in list_of_results[i+1].index if var not in list_of_results[0].index]
-    target_cols = list_of_results[0].index.tolist()
-    for i in range(len(missing_cols)):
-        target_cols.insert(i + 6, missing_cols[i])
+    #missing_cols = [var for i in range(len(list_of_results)-2,-1,-1) for var in list_of_results[i+1].index if var not in list_of_results[0].index]
+    #target_cols = list_of_results[0].index.tolist()
+    #for i in range(len(missing_cols)):
+    #    target_cols.insert(i + 2, missing_cols[i])
     
     # order results    
-    results = results.loc[target_cols,:]
+    results = results.loc[list_of_results[-1].index,:]
 
     # Rename index
     results.index = [result if not show in result else '' for result in results.index]
@@ -190,7 +194,7 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
     results_latex = results_latex[:location + len('\begin{table}\n') + 1] + '[th!]' + results_latex[location + len('\begin{table}\n') + 1:]
     
     ## Make the font size of the table footnotesize
-    size_string = '\\scriptsize \n'
+    size_string = '\\tiny \n'
     location = results_latex.find('\centering\n')
     results_latex = results_latex[:location + len('\centering\n')] + size_string + results_latex[location + len('\centering\n'):]
     
@@ -201,7 +205,7 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
     
     ## Add note to the table
     # TODO: Add std, tval and stars option
-    note_string = '\justify\n\\scriptsize{\\textit{Notes.} Robustness results of the rate spread model. The model is estimated with the within estimator and includes clustered standard errors on the MSA-level. P-value in parentheses. LS = Loan Sold, LTI = loan-to-income ratio, LTV = loan-to-value ratio, IO = Interest Only, MAT = Maturity loan 30 years and longer.}\n'
+    note_string = '\justify\n\\scriptsize{\\textit{Notes.} Robustness results of the benchmark model. The model includes dummies for technological innovation, and is estimated with the within estimator and includes clustered standard errors on the MSA-level. The dependent variable is Distance. P-value in parentheses. LTI = loan-to-income ratio.}\n'
     location = results_latex.find('\end{tabular}\n')
     results_latex = results_latex[:location + len('\end{tabular}\n')] + note_string + results_latex[location + len('\end{tabular}\n'):]
     
@@ -213,27 +217,37 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
 #------------------------------------------------------------
     
 # Set path list
-path_list = ['Robustness_checks/Ratespread_robust_distance.csv',\
-             'Robustness_checks/Ratespread_robust_cdd.csv']
+path_list1819 = ['Robustness_checks/Benchmark_techinno_1819_{}.csv'.format(i) for i in range(7)]
+path_list1319 = ['Robustness_checks/Benchmark_techinno_1319_{}.csv'.format(i) for i in range(9)]
 
-col_label = ['(1)','(2)']
+col_label1819 = ['({})'.format(i + 1) for i in range(7)]
+col_label1319 = ['({})'.format(i + 1) for i in range(9)]
 
 # Set title and label
-caption = 'Robustness Results Rate Spread Model'
-label = 'tab:robust_ratespread'
+caption1819 = 'Robustness Results Technological Innovation: Automated Lending and Credit Scoring'
+label1819 = 'tab:robust_techinno1'
+caption1319 = 'Robustness Results Technological Innovation: Internet Subscriptions'
+label1319 = 'tab:robust_techinno2'
 
 # Call function
-df_results, latex_results = concatResults(path_list, col_label = col_label,\
-                                                  caption = caption, label = label)
+df_results1819, latex_results1819 = concatResults(path_list1819, col_label = col_label1819,\
+                                                  caption = caption1819, label = label1819)
+df_results1319, latex_results1319 = concatResults(path_list1319, col_label = col_label1319,\
+                                                  caption = caption1319, label = label1319)
 
 #------------------------------------------------------------
 # Save df and latex file
 #------------------------------------------------------------
 
-df_results.to_csv('Robustness_checks/Table_robust_ratespread.csv')
+df_results1819.to_csv('Robustness_checks/Table_robust_techinno1.csv')
 
-text_file_latex_results = open('Robustness_checks/Table_robust_ratespread.tex', 'w')
-text_file_latex_results.write(latex_results)
+text_file_latex_results = open('Robustness_checks/Table_robust_techinno1.tex', 'w')
+text_file_latex_results.write(latex_results1819)
 text_file_latex_results.close()
 
+df_results1319.to_csv('Robustness_checks/Table_robust_techinno2.csv')
+
+text_file_latex_results = open('Robustness_checks/Table_robust_techinno2.tex', 'w')
+text_file_latex_results.write(latex_results1319)
+text_file_latex_results.close()
 

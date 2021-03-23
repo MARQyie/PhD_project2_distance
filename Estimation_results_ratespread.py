@@ -46,12 +46,15 @@ dd_main = dd.read_parquet(path = 'Data/data_main_clean.parquet',\
 ## Subset data
 dd_main = dd_main[(dd_main.date.astype(int) >= 2018) & (dd_main.loan_originated == 1)]
 
+## Add remote dummy
+dd_main['remote'] = (dd_main['local'] - 1).abs()
+
 ## Intercept
-dd_main['intercept'] = 1
+#dd_main['intercept'] = 1
 
 ## Interaction terms
-dd_main = dd_main.assign(local_ls = dd_main['local'] * dd_main['ls'])
-dd_main = dd_main.assign(log_min_distance_ls = dd_main['log_min_distance'] * dd_main['ls'])
+dd_main = dd_main.assign(remote_ls = dd_main['remote'] * dd_main['ls'])
+#dd_main = dd_main.assign(log_min_distance_ls = dd_main['log_min_distance'] * dd_main['ls'])
 
 ## Remove outliers
 dd_main = dd_main[(dd_main.rate_spread > -150) & (dd_main.rate_spread < 10) &\
@@ -122,7 +125,7 @@ def VIFTest(df, x):
 
 # Set variables
 y = 'rate_spread'
-x_local = ['ls','local','local_ls','lti','ltv','ln_loanamout',\
+x_local = ['ls','remote','remote_ls','lti','ltv','ln_loanamout',\
      'ln_appincome','int_only','balloon','mat','lien', 'coapp']
 
 # Set other parameters

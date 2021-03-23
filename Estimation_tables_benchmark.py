@@ -189,7 +189,7 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
     
     ## Add note to the table
     # TODO: Add std, tval and stars option
-    note_string = '\justify\n\\scriptsize{\\textit{Notes.} Estimation results of the distance model. The model is estimated with the within estimator and includes clustered standard errors on the MSA-level. P-value in parentheses. P-value in parentheses. LTI = loan-to-income ratio. The model is estimated with clustered standard errors on the MSA-level.}\n'
+    note_string = '\justify\n\\scriptsize{\\textit{Notes.} Estimation results of the benchmark model. The model is estimated with the within estimator and includes clustered standard errors on the MSA-level. P-value in parentheses. P-value in parentheses. LTI = loan-to-income ratio. The model is estimated with clustered standard errors on the MSA-level.}\n'
     location = results_latex.find('\end{tabular}\n')
     results_latex = results_latex[:location + len('\end{tabular}\n')] + note_string + results_latex[location + len('\end{tabular}\n'):]
     
@@ -207,7 +207,7 @@ path_list = ['Results/Distance_results_benchmark.csv',\
 col_label = ['(2004--2019)','(2010--2019)']
 
 # Set title and label
-caption = 'Estimation Results Distance Model'
+caption = 'Estimation Results Benchmark Model'
 label = 'tab:results_distance'
 
 # Call function

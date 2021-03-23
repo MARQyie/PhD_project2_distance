@@ -42,6 +42,8 @@ def estimationTable(df, show = 'pval', stars = False, col_label = 'Est. Results'
                   'log_min_distance_ls':'LS x Distance',
                   'local':'Local ($\\beta_2$)',
                   'local_ls':'Local X LS ($\\beta_3$)',
+                  'remote':'Remote ($\\beta_2$)',
+                  'remote_ls':'Remote X LS ($\\beta_3$)',
                   'perc_broadband':'Internet',
                   'lti':'LTI',
                   'ltv':'LTV',

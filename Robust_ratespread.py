@@ -46,10 +46,13 @@ dd_main = dd.read_parquet(path = 'Data/data_main_clean.parquet',\
 ## Subset data
 dd_main = dd_main[(dd_main.date.astype(int) >= 2018) & (dd_main.loan_originated == 1)]
 
+## Add remote dummy
+dd_main['remote'] = (dd_main['local'] - 1).abs()
+
 ## Interaction terms
 dd_main = dd_main.assign(log_min_distance_cdd_ls = dd_main['log_min_distance_cdd'] * dd_main['ls'])
 dd_main = dd_main.assign(log_min_distance_ls = dd_main['log_min_distance'] * dd_main['ls'])
-dd_main = dd_main.assign(local_ls_ever = dd_main['local'] * dd_main['ls_ever'])
+dd_main = dd_main.assign(remote_ls_ever = dd_main['remote'] * dd_main['ls_ever'])
 
 ## Remove outliers
 dd_main = dd_main[(dd_main.rate_spread > -150) & (dd_main.rate_spread < 10) &\
@@ -74,7 +77,7 @@ x1 = ['ls','log_min_distance','log_min_distance_ls','lti','ltv','ln_loanamout',\
      'ln_appincome','int_only','balloon','mat','lien', 'coapp']
 x2 = ['ls','log_min_distance_cdd','log_min_distance_cdd_ls','lti','ltv','ln_loanamout',\
      'ln_appincome','int_only','balloon','mat','lien', 'coapp']
-x3 = ['ls_ever','local','local_ls_ever','lti','ltv','ln_loanamout',\
+x3 = ['ls_ever','remote','remote_ls_ever','lti','ltv','ln_loanamout',\
      'ln_appincome','int_only','balloon','mat','lien', 'coapp']
 
 # Set other parameters

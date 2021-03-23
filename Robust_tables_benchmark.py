@@ -152,8 +152,9 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
     for df_path, lab in zip(path_list, col_label):
         # Read df
         df = pd.read_csv(df_path, index_col = 0, dtype = {'nobs':'str'})
-        df['nobs'] = df.nobs.str[:-2]
-        df['fixed effects'] = 'MSA-year, FIPS \& Lender'
+        if not '_loancosts' in df_path:
+            df['nobs'] = df.nobs.str[:-2]
+            df['fixed effects'] = 'MSA-year, FIPS \& Lender'
     
         # Call estimationTable and append to list
         list_of_results.append(estimationTable(df, show = 'pval', stars = False,\
@@ -200,7 +201,7 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
     
     ## Add note to the table
     # TODO: Add std, tval and stars option
-    note_string = '\justify\n\\scriptsize{\\textit{Notes.} Robustness results of the distance model. The model is estimated with the within estimator and includes clustered standard errors on the MSA-level. The dependent variable is Distance (CDD) in column (1), Local in column (2) and Distance in columns (2)--(3). P-value in parentheses. LTI = loan-to-income ratio. The model is estimated with clustered standard errors on the MSA-level.}\n'
+    note_string = '\justify\n\\scriptsize{\\textit{Notes.} Robustness results of the distance model. The model is estimated with the within estimator and includes clustered standard errors on the MSA-level. The dependent variable is Loan Costs-to-Loan-Value in colum (1), Distance (CDD) in column (2), Local in column (3) and Distance in column (4). P-value in parentheses. LTI = loan-to-income ratio. The model is estimated with clustered standard errors on the MSA-level.}\n'
     location = results_latex.find('\end{tabular}\n')
     results_latex = results_latex[:location + len('\end{tabular}\n')] + note_string + results_latex[location + len('\end{tabular}\n'):]
     
@@ -212,15 +213,15 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
 #------------------------------------------------------------
     
 # Set path list
-path_list = ['Robustness_checks/Distance_robust_cdd.csv',\
-             'Robustness_checks/Distance_robust_local.csv',
-             'Robustness_checks/Distance_robust_lssplit.csv',\
-             'Robustness_checks/Distance_robust_lsever.csv']
+path_list = ['Robustness_checks/Distance_robust_loancosts.csv',\
+             'Robustness_checks/Distance_robust_cdd.csv',\
+             'Robustness_checks/Distance_robust_remote.csv',
+             'Robustness_checks/Distance_robust_lssplit.csv']
 
 col_label = ['(1)','(2)','(3)','(4)']
 
 # Set title and label
-caption = 'Robustness Results Distance Model'
+caption = 'Robustness Results Benchmark Model'
 label = 'tab:robust_distance'
 
 # Call function
