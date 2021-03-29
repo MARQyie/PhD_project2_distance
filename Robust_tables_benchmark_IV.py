@@ -39,6 +39,8 @@ def estimationTable(df, show = 'pval', stars = False, col_label = 'Est. Results'
     ## Set dictionary for index and columns
     dictionary = {'log_min_distance':'Distance',
                   'ls':'Loan Sold',
+                  'ls_hat':'$\hat{LS}$',
+                  'ls_other':'LS Other',
                   'ls_gse':'LS GSE',
                   'ls_priv':'LS Private',
                   'sec':'Securitization',
@@ -85,7 +87,8 @@ def estimationTable(df, show = 'pval', stars = False, col_label = 'Est. Results'
                   'fixed effects':'FE',
                   'msamd':'MSAs/MDs',
                   'cert':'Lenders',
-                  'intercept':'Intercept'}
+                  'intercept':'Intercept',
+                  'hw_pval':'DHW p-val'}
     
     # Get parameter column and secondary columns (std, tval, pval)
     params = df.params.round(4)
@@ -118,7 +121,7 @@ def estimationTable(df, show = 'pval', stars = False, col_label = 'Est. Results'
     
     # append N, lenders, MSAs, adj. R2, Depvar, and FEs
     ## Make stats lists and maken index labels pretty
-    stats = df[['nobs', 'adj_rsquared', 'fixed effects']].iloc[0,:].apply(lambda x: round(x, 4) if isinstance(x, (int, float)) else x)
+    stats = df[['nobs', 'adj_rsquared', 'hw_pval', 'fixed effects']].iloc[0,:].apply(lambda x: round(x, 4) if isinstance(x, (int, float)) else x)
     stats.index = [dictionary[val] for val in stats.index]
     
     ### Make df from stats
@@ -152,9 +155,11 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
     for df_path, lab in zip(path_list, col_label):
         # Read df
         df = pd.read_csv(df_path, index_col = 0, dtype = {'nobs':'str'})
-        if not '_loancosts' in df_path:
-            df['nobs'] = df.nobs.str[:-2]
-            df['fixed effects'] = 'MSA-year, FIPS \& Lender'
+        df['nobs'] = df.nobs.str[:-2]
+        df['fixed effects'] = 'MSA-year, FIPS \& Lender'
+        
+        if '_fs' in df_path:
+            df['hw_pval'] = np.nan
     
         # Call estimationTable and append to list
         list_of_results.append(estimationTable(df, show = 'pval', stars = False,\
@@ -165,7 +170,7 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
     
     # Order results
     ## Get column indexes that are not in fist column and insert in index column 0
-    missing_cols = [var for i in range(len(list_of_results)-2,-1,-1) for var in list_of_results[i+1].index if var not in list_of_results[0].index]
+    missing_cols = [var for i in range(len(list_of_results)-3,-1,-1) for var in list_of_results[i+1].index if var not in list_of_results[0].index]
     target_cols = list_of_results[0].index.tolist()
     for i in range(len(missing_cols)):
         target_cols.insert(i + 2, missing_cols[i])
@@ -201,7 +206,7 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
     
     ## Add note to the table
     # TODO: Add std, tval and stars option
-    note_string = '\justify\n\\scriptsize{\\textit{Notes.} Robustness results of the distance model for the robustness checks loan costs, alternative distance, and loan sales split. The model is estimated with the within estimator and includes clustered standard errors on the MSA-level. The dependent variable is Loan Costs-to-Loan-Value in colum (1), Distance (CDD) in column (2), Local in column (3) and Distance in column (4). P-value in parentheses. LTI = loan-to-income ratio. The model in column (1) is estimated on the years 2018-2019, the rest of the models utilize the entire data set.}\n'
+    note_string = '\justify\n\\scriptsize{\\textit{Notes.} Instrumental Variable Model results of the distance model. The model is estimated with the within estimator and includes clustered standard errors on the MSA-level. The dependent variable is Distance. P-value in parentheses. LTI = loan-to-income ratio. Columns (1)--(2) display the first stage results and column (3)-(4) the second stage results. The model is estimated on the full sample (columns (1) and (3)) and the post-2009 sample (columns (2) and (4)).}\n'
     location = results_latex.find('\end{tabular}\n')
     results_latex = results_latex[:location + len('\end{tabular}\n')] + note_string + results_latex[location + len('\end{tabular}\n'):]
     
@@ -213,16 +218,16 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
 #------------------------------------------------------------
     
 # Set path list
-path_list = ['Robustness_checks/Distance_robust_loancosts.csv',\
-             'Robustness_checks/Distance_robust_cdd.csv',\
-             'Robustness_checks/Distance_robust_remote.csv',
-             'Robustness_checks/Distance_robust_lssplit.csv']
+path_list = ['Robustness_checks/Distance_robust_benchmark_IV_fs.csv',\
+             'Robustness_checks/Distance_robust_benchmark_IV_fs_1019.csv',\
+             'Robustness_checks/Distance_robust_benchmark_IV_ss.csv',
+             'Robustness_checks/Distance_robust_benchmark_IV_ss_1019.csv']
 
 col_label = ['(1)','(2)','(3)','(4)']
 
 # Set title and label
-caption = 'Robustness Results Benchmark Model: Loan Costs, Alternative Distance, and Loan Sales Split'
-label = 'tab:robust_distance'
+caption = 'Robustness Results IV Benchmark Model'
+label = 'tab:robust_distance_iv'
 
 # Call function
 df_results, latex_results = concatResults(path_list, col_label = col_label,\
@@ -232,9 +237,9 @@ df_results, latex_results = concatResults(path_list, col_label = col_label,\
 # Save df and latex file
 #------------------------------------------------------------
 
-df_results.to_csv('Robustness_checks/Table_robust_distance.csv')
+df_results.to_csv('Robustness_checks/Table_robust_distance_iv.csv')
 
-text_file_latex_results = open('Robustness_checks/Table_robust_distance.tex', 'w')
+text_file_latex_results = open('Robustness_checks/Table_robust_distance_iv.tex', 'w')
 text_file_latex_results.write(latex_results)
 text_file_latex_results.close()
 
