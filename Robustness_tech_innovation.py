@@ -81,6 +81,13 @@ df_int.columns = names
 df_int['geo_id'] = df_int.geo_id.str[-5:].astype(int)
 
 #------------------------------------------------------------
+# Load Instruments to dataframes
+ls_other = pd.read_csv('Data/df_ls_other.csv')
+             
+## Add instruments to columns
+columns.append('ls_other')
+
+#------------------------------------------------------------
 # Make df for the years 2018-2019 (automated lending and credit scoring)
 
 # Make df
@@ -95,6 +102,18 @@ df1819.reset_index(drop = True, inplace = True)
 # Check dataset
 #desc_df1819 = df1819.describe().T # All good
 
+# Merge dataframes            
+df1819 = df1819.merge(ls_other[['fips','date','cert','ls_other']], how = 'inner', on = ['fips','date','cert'])
+
+# Transform data
+df1819_grouped_fips = df1819.groupby('fips')[columns[4:]].transform('mean')
+df1819_grouped_lender = df1819.groupby('cert')[columns[4:]].transform('mean')
+df1819_mean = df1819[columns[4:]].mean()
+
+df1819_trans = df1819[columns[4:]] - df1819_grouped_fips - df1819_grouped_lender + df1819_mean 
+
+df1819_trans['msamd'] = df1819.msamd
+df1819_trans.dropna(subset = columns[4:], inplace = True)
 #------------------------------------------------------------
 # Make df for the years 2013-2019 (Internet subscriptions)
 
@@ -102,7 +121,7 @@ df1819.reset_index(drop = True, inplace = True)
 df1319 = dd_main[dd_main.loan_originated == 1].compute(scheduler = 'threads')
 
 # Remove date < 2013
-df1319 = df1319[df1819.date.astype(int) >= 2013]
+df1319 = df1319[df1319.date.astype(int) >= 2013]
 
 # Reset index
 df1319.reset_index(drop = True, inplace = True)
@@ -113,19 +132,24 @@ df1319 = df1319.merge(df_int, how = 'inner', left_on = ['fips','date'], right_on
 # Check dataset
 #desc_df1319 = df1319.describe().T # All good
 
+# Merge dataframes            
+df1319 = df1319.merge(ls_other[['fips','date','cert','ls_other']], how = 'inner', on = ['fips','date','cert'])
+
 # Transform df1319 according to the FE structure (eq. (1))
 df1319 = df1319.assign(msat = df1319.date.astype(str) + df1319.msamd.astype(str))
 
-df1319_grouped_msat = df1319.groupby('msat')[columns[4:]].transform('mean')
-df1319_grouped_fips = df1319.groupby('fips')[columns[4:]].transform('mean')
-df1319_grouped_lender = df1319.groupby('cert')[columns[4:]].transform('mean')
-df1319_mean = df1319[columns[4:]].mean()
+df1319_grouped_msat = df1319.groupby('msat')[columns[4:] + ['dailup', 'broadband', 'noint']].transform('mean')
+df1319_grouped_fips = df1319.groupby('fips')[columns[4:] + ['dailup', 'broadband', 'noint']].transform('mean')
+df1319_grouped_lender = df1319.groupby('cert')[columns[4:] + ['dailup', 'broadband', 'noint']].transform('mean')
+df1319_mean = df1319[columns[4:] + ['dailup', 'broadband', 'noint']].mean()
 
-df1319_trans = df1319[columns[4:]] - df1319_grouped_msat - df1319_grouped_fips - df1319_grouped_lender + 2 * df1319_mean 
+df1319_trans = df1319[columns[4:] + ['dailup', 'broadband', 'noint']] - df1319_grouped_msat - df1319_grouped_fips - df1319_grouped_lender + 2 * df1319_mean 
 
+df1319_trans['msamd'] = df1319.msamd
+df1319_trans.dropna(subset = columns[4:], inplace = True)
 #------------------------------------------------------------
 # Drop dask dataframe from memory
-del dd_main
+del dd_main, df1319, df1819
 
 #------------------------------------------------------------
 # Set variables, parameters and file names
@@ -139,7 +163,7 @@ y = 'log_min_distance'
 x1819 = [['ls'],['automated'],['csm'],['ls','automated'],['ls','csm'],['automated','csm'],['ls','automated','csm']]
 
 ## Regressors 1319
-x1319 = [['ls'],['dailup'],['broadband'],['noint'],['ls','dailup'],['ls','broadband'],['ls','noint'],['dailup','broadband','noint'],['ls','dailup','broadband','noint']]
+x1319 = [['ls'],['dailup'],['broadband'],['noint'],['ls','dailup'],['ls','broadband'],['ls','noint'],['dailup','broadband'],['ls','dailup','broadband']]
 
 ## Regressors all models
 x_rest = ['lti','ln_loanamout','ln_appincome','subprime','lien','coapp','ln_ta',\
@@ -149,8 +173,6 @@ x_rest = ['lti','ln_loanamout','ln_appincome','subprime','lien','coapp','ln_ta',
 ##1819
 cov_type1819 = 'clustered'
 cluster_cols_var1819 = 'msamd'
-FE_cols_vars1819 = ['fips','cert']
-how1819 = 'fips, cert'
 
 ##1319
 cov_type1319 = 'clustered'
@@ -169,25 +191,109 @@ file_1319 = 'Robustness_checks/Benchmark_techinno_1319_{}.{}'
 
 # Run model 1819
 for x,i in zip(x1819,range(len(x1819))):
-    results_1819 = MultiDimensionalOLS().fit(df1819[y], df1819[x + x_rest],\
-                        cov_type = cov_type1819, cluster_cols = df1819[cluster_cols_var1819],\
-                        transform_data = True, FE_cols = df1819[FE_cols_vars1819], how = how1819)
     
-    ## Transform to pandas df
-    df_results_1819 = results_1819.to_dataframe()
+    # Compute first stage results
+    if 'ls' in x:
+        results_1819_fs = MultiDimensionalOLS().fit(df1819_trans[x[0]], df1819_trans[['ls_other'] + x[1:] + x_rest],\
+                        cov_type = cov_type1819, cluster_cols = df1819_trans[cluster_cols_var1819])
     
-    ## Save to excel and csv
-    df_results_1819.to_excel(file_1819.format(i,'xlsx'))
-    df_results_1819.to_csv(file_1819.format(i,'csv'))
+        ## Transform to pandas dataframe and save as csv
+        df_results_1819_fs = results_1819_fs.to_dataframe()
+        df_results_1819_fs['fixed effects'] = 'FIPS \& Lender'
+        partial_filename = 'fs_{}'.format(i)
+        df_results_1819_fs.to_csv(file_1819.format(partial_filename,'csv'))
+    
+        ## Append fitted values and residuals to dataframe
+        df1819_trans['ls_hat'] = results_1819_fs.fittedvalues
+        df1819_trans['ls_resid'] = results_1819_fs.resid
+        
+        del results_1819_fs
+        
+    # Compute Second Stage results
+    if 'ls' in x:
+        results_1819 = MultiDimensionalOLS().fit(df1819_trans[y], df1819_trans[['ls_hat'] + x[1:] + x_rest],\
+                        cov_type = cov_type1819, cluster_cols = df1819_trans[cluster_cols_var1819])
+    
+        ## Transform to dataframe
+        df_results_1819 = results_1819.to_dataframe()
+        df_results_1819['fixed effects'] = 'FIPS \& Lender'
+    
+        ## Perform Hausman test and append to results dataframe
+        results_1819_hw = MultiDimensionalOLS().fit(df1819_trans[y], df1819_trans[x + x_rest + ['ls_resid']],\
+                    cov_type = cov_type1819, cluster_cols = df1819_trans[cluster_cols_var1819])
+    
+        df_results_1819_hw = results_1819_hw.to_dataframe() 
+        del results_1819_hw
 
-# Run model 1819
+        ### Ad hw-stat to df_results_ss
+        df_results_1819['hw_pval'] = df_results_1819_hw.loc['ls_resid','p']
+    
+        ## Save to csv
+        df_results_1819.to_csv(file_1819.format(i,'csv'))
+        
+        del results_1819
+    else:
+        results_1819 = MultiDimensionalOLS().fit(df1819_trans[y], df1819_trans[x + x_rest],\
+                        cov_type = cov_type1819, cluster_cols = df1819_trans[cluster_cols_var1819])
+    
+        ## Transform to pandas df
+        df_results_1819 = results_1819.to_dataframe()
+        df_results_1819['fixed effects'] = 'FIPS \& Lender'
+    
+        ## Save to excel and csv
+        df_results_1819.to_csv(file_1819.format(i,'csv'))
+        del results_1819
+
+# Run model 1319
 for x,i in zip(x1319,range(len(x1319))):
-    results_1319 = MultiDimensionalOLS().fit(df1319[y], df1319[x + x_rest],\
-                        cov_type = cov_type1319, cluster_cols = df1319[cluster_cols_var1319])
     
-    ## Transform to pandas df
-    df_results_1319 = results_1319.to_dataframe()
+    # Compute first stage results
+    if 'ls' in x:
+        results_1319_fs = MultiDimensionalOLS().fit(df1319_trans[x[0]], df1319_trans[['ls_other'] + x[1:] + x_rest],\
+                        cov_type = cov_type1319, cluster_cols = df1319_trans[cluster_cols_var1319])
     
-    ## Save to excel and csv
-    df_results_1319.to_excel(file_1319.format(i,'xlsx'))
-    df_results_1319.to_csv(file_1319.format(i,'csv'))
+        ## Transform to pandas dataframe and save as csv
+        df_results_1319_fs = results_1319_fs.to_dataframe()
+        df_results_1319_fs['fixed effects'] = 'MSA-year, FIPS \& Lender'
+        partial_filename = 'fs_{}'.format(i)
+        df_results_1319_fs.to_csv(file_1319.format(partial_filename,'csv'))
+    
+        ## Append fitted values and residuals to dataframe
+        df1319_trans['ls_hat'] = results_1319_fs.fittedvalues
+        df1319_trans['ls_resid'] = results_1319_fs.resid
+        
+        del results_1319_fs
+    # Compute Second Stage results
+    if 'ls' in x:
+        results_1319 = MultiDimensionalOLS().fit(df1319_trans[y], df1319_trans[['ls_hat'] + x[1:] + x_rest],\
+                        cov_type = cov_type1319, cluster_cols = df1319_trans[cluster_cols_var1319])
+    
+        ## Transform to dataframe
+        df_results_1319 = results_1319.to_dataframe()
+        df_results_1319['fixed effects'] = 'MSA-year, FIPS \& Lender'
+    
+        ## Perform Hausman test and append to results dataframe
+        results_1319_hw = MultiDimensionalOLS().fit(df1319_trans[y], df1319_trans[x + x_rest + ['ls_resid']],\
+                    cov_type = cov_type1319, cluster_cols = df1319_trans[cluster_cols_var1319])
+    
+        df_results_1319_hw = results_1319_hw.to_dataframe() 
+        del results_1319_hw
+
+        ### Ad hw-stat to df_results_ss
+        df_results_1319['hw_pval'] = df_results_1319_hw.loc['ls_resid','p']
+    
+        ## Save to csv
+        df_results_1319.to_csv(file_1319.format(i,'csv'))
+        
+        del results_1319
+    else:
+        results_1319 = MultiDimensionalOLS().fit(df1319_trans[y], df1319_trans[x + x_rest],\
+                        cov_type = cov_type1319, cluster_cols = df1319_trans[cluster_cols_var1319])
+    
+        ## Transform to pandas df
+        df_results_1319 = results_1319.to_dataframe()
+        df_results_1319['fixed effects'] = 'FIPS \& Lender'
+    
+        ## Save to excel and csv
+        df_results_1319.to_csv(file_1319.format(i,'csv'))
+        del results_1319

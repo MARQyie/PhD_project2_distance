@@ -75,11 +75,11 @@ class Metrics:
         ''' Calculates the model degrees of freedom.
             N - rank(X)'''
         if self._transform_data:
-            self.df_resid = self.nobs - np.linalg.matrix_rank(self._data_trans)
+            self.df_resid = self.nobs - np.linalg.matrix_rank(self._data_trans) - 1
             return self.df_resid
         
         else:
-            self.df_resid = self.nobs - np.linalg.matrix_rank(self._data)
+            self.df_resid = self.nobs - np.linalg.matrix_rank(self._data) - 1
             return self.df_resid
     
     def mseModel(self):

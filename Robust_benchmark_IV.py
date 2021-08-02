@@ -33,7 +33,7 @@ from Code_docs.Help_functions.MD_panel_estimation import MultiDimensionalOLS, Tr
 columns = ['date','fips','msamd','cert','log_min_distance','ls',\
            'lti','ln_loanamout','ln_appincome','subprime',\
            'lien','owner','preapp', 'coapp','loan_originated',\
-           'ln_ta','ln_emp','ln_num_branch','cb']
+           'ln_ta','ln_emp','ln_num_branch','cb','ls_gse', 'ls_priv', 'sec']
 
 dd_main = dd.read_parquet(path = 'Data/data_main_clean.parquet',\
                        engine = 'fastparquet',\
@@ -77,23 +77,33 @@ del dd_main
 
 '''TURN ON IF RAN FOR THE FIRST TIME
 # Percentage loans sold per county by other banks
-unique_certs = df.cert.unique().sort_values().tolist()
+unique_certs = np.sort(df.cert.unique())
 
 # Set and sortindex for df
 df.set_index(['cert','fips','date'], inplace = True)
 df.sort_index(inplace = True)
 
 # Get sum and count of total df
-df_grouped_sumcount = df.groupby(['fips','date']).ls.agg(['sum','count'])
+#df_grouped_sumcount = df.groupby(['fips','date']).ls.agg(['sum','count'])
+dict_agg = {'ls':['sum','count'],
+            'ls_gse':['sum','count'],
+            'ls_priv':['sum','count'],
+            'sec':['sum','count']}
+df_grouped_sumcount = df.groupby(['fips','date']).agg(dict_agg)
 
 # Set mask indexer
 mask_index = df.index.get_loc
 
 # Set function
 def soldOther(lender):
+    # Set mask
     mask = mask_index(lender)
     
-    return (df_grouped_sumcount - df[mask].groupby(['fips','date']).ls.agg(['sum','count'])).assign(cert = lender)
+    # get lender grouped df
+    df_lender = df[mask].groupby(['fips','date']).agg(dict_agg)
+    
+    # Retund df minus lender
+    return (df_grouped_sumcount - df_lender).assign(cert = lender)
 
 # Loop over function
 ls_other = []
@@ -103,14 +113,18 @@ for lender in unique_certs:
     append(soldOther(lender))
 
 # Make pandas dataframe and add mean measure
-ls_other = pd.concat(ls_other).dropna()
-ls_other['ls_other'] = ls_other['sum'] / ls_other['count']
+df_ls_other = pd.concat(ls_other).dropna(subset = [('ls','count')])
+
+df_ls_other['ls_other'] = df_ls_other[('ls','sum')] / df_ls_other[('ls','count')]
+df_ls_other['ls_gse_other'] = df_ls_other[('ls_gse','sum')] / df_ls_other[('ls_gse','count')]
+df_ls_other['ls_priv_other'] = df_ls_other[('ls_priv','sum')] / df_ls_other[('ls_priv','count')]
+df_ls_other['sec_other'] = df_ls_other[('sec','sum')] / df_ls_other[('sec','count')]
 
 ## reset index
-ls_other.reset_index(inplace = True)
+df_ls_other.reset_index(inplace = True)
 
 # Save to csv
-ls_other.to_csv('Data/df_ls_other.csv') '''
+df_ls_other.to_csv('Data/df_ls_other.csv') '''
 
 # Load ls_other
 ls_other = pd.read_csv('Data/df_ls_other.csv')

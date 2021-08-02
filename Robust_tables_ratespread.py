@@ -40,9 +40,15 @@ def estimationTable(df, show = 'pval', stars = False, col_label = 'Est. Results'
     dictionary = {'log_min_distance':'Distance',
                   'log_min_distance_cdd':'Distance (CDD)',
                   'ls':'Loan Sold',
+                  'ls_other':'MD',
                   'ls_ever':'Loan Seller',
                   'log_min_distance_ls':'LS x Distance',
                   'log_min_distance_cdd_ls':'LS x Distance (CDD)',
+                  'ls_hat':'$\hat{LS}$',
+                  'ls_other_log_min_distance_hat':'$\hat{LS}$ x Distance',
+                  'ls_other_log_min_distance_cdd_hat':'$\hat{LS}$ x Distance (CDD)',
+                  'ls_other_log_min_distance':'MD x Distance',
+                  'ls_other_log_min_distance_cdd':'MD x Distance (CDD)',
                   'local':'Local',
                   'local_ls':'Local X LS',
                   'remote':'Remote ',
@@ -88,7 +94,9 @@ def estimationTable(df, show = 'pval', stars = False, col_label = 'Est. Results'
                   'fixed effects':'FE',
                   'msamd':'MSAs/MDs',
                   'cert':'Lenders',
-                  'intercept':'Intercept'}
+                  'intercept':'Intercept',
+                  'dwh_p':'DHW p-val',
+                  'fstat':'F-stat'}
     
     # Get parameter column and secondary columns (std, tval, pval)
     params = df.params.round(4)
@@ -121,7 +129,7 @@ def estimationTable(df, show = 'pval', stars = False, col_label = 'Est. Results'
     
     # append N, lenders, MSAs, adj. R2, Depvar, and FEs
     ## Make stats lists and maken index labels pretty
-    stats = df[['nobs', 'adj_rsquared', 'fixed effects']].iloc[0,:].apply(lambda x: round(x, 4) if isinstance(x, (int, float)) else x)
+    stats = df[['nobs', 'adj_rsquared', 'fstat','dwh_p','fixed effects']].iloc[0,:].apply(lambda x: round(x, 4) if isinstance(x, (int, float)) else x)
     stats.index = [dictionary[val] for val in stats.index]
     
     ### Make df from stats
@@ -137,7 +145,7 @@ def resultsToLatex(results, caption = '', label = ''):
     # Prelim
     function_parameters = dict(na_rep = '',
                                index_names = False,
-                               column_format = 'p{3cm}' + 'p{2cm}' * results.shape[1],
+                               column_format = 'p{3cm}' + 'p{1.5cm}' * results.shape[1],
                                escape = False,
                                multicolumn = True,
                                multicolumn_format = 'c',
@@ -155,7 +163,11 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
     for df_path, lab in zip(path_list, col_label):
         # Read df
         df = pd.read_csv(df_path, index_col = 0, dtype = {'nobs':'str'})
-    
+        if 'fs' in df_path:
+            df['dwh_p'] = np.nan
+        else:
+            df['fstat'] = np.nan
+        df['fixed effects'] = 'FIPS \& Lender'
         # Call estimationTable and append to list
         list_of_results.append(estimationTable(df, show = 'pval', stars = False,\
                                                col_label = lab))
@@ -169,6 +181,9 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
     target_cols = list_of_results[0].index.tolist()
     for i in range(len(missing_cols)):
         target_cols.insert(i + 6, missing_cols[i])
+        
+    ## Remove double Distance (CDD)
+    target_cols = target_cols[:10] + target_cols[14:18] + target_cols[22:]
     
     # order results    
     results = results.loc[target_cols,:]
@@ -178,7 +193,7 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
     
     
     # Rename columns if multicolumn
-    if '|' in results.columns:
+    if '|' in results.columns[0]:
         col_names = np.array([string.split('|') for string in results.columns])
         results.columns = pd.MultiIndex.from_arrays([col_names[:,0], col_names[:,1]], names = ['Method','Number'])
     
@@ -190,7 +205,7 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
     results_latex = results_latex[:location + len('\begin{table}\n') + 1] + '[th!]' + results_latex[location + len('\begin{table}\n') + 1:]
     
     ## Make the font size of the table footnotesize
-    size_string = '\\scriptsize \n'
+    size_string = '\\tiny \n'
     location = results_latex.find('\centering\n')
     results_latex = results_latex[:location + len('\centering\n')] + size_string + results_latex[location + len('\centering\n'):]
     
@@ -213,10 +228,14 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
 #------------------------------------------------------------
     
 # Set path list
-path_list = ['Robustness_checks/Ratespread_robust_distance.csv',\
-             'Robustness_checks/Ratespread_robust_cdd.csv']
+path_list = ['Robustness_checks/Ratespread_robust_distance_fs1.csv',\
+             'Robustness_checks/Ratespread_robust_distance_fs2.csv',\
+             'Robustness_checks/Ratespread_robust_cdd_fs1.csv',\
+             'Robustness_checks/Ratespread_robust_cdd_fs2.csv',\
+             'Robustness_checks/Ratespread_robust_distance_ss.csv',\
+             'Robustness_checks/Ratespread_robust_cdd_ss.csv']
 
-col_label = ['(1)','(2)']
+col_label = ['First Stage|(1)','First Stage|(2)','First Stage|(3)','First Stage|(4)','Second Stage|(5)','Second Stage|(6)']
 
 # Set title and label
 caption = 'Robustness Results Rate Spread Model'

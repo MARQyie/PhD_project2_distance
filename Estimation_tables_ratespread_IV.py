@@ -38,16 +38,16 @@ def estimationTable(df, show = 'pval', stars = False, col_label = 'Est. Results'
     # Prelims
     ## Set dictionary for index and columns
     dictionary = {'log_min_distance':'Distance',
-                  'ls':'Loan Sold',
-                  'ls_hat':'$\hat{LS}$',
-                  'ls_other':'MD',
-                  'ls_gse':'LS GSE',
-                  'ls_priv':'LS Private',
-                  'sec':'Securitization',
-                  'ls_ever':'Loan Seller',
+                  'ls':'Loan Sold ($\\beta_1$)',
                   'log_min_distance_ls':'LS x Distance',
-                  'local':'Local',
-                  'local_ls':'Local X LS',
+                  'local':'Local ($\\beta_2$)',
+                  'local_ls':'Local X LS ($\\beta_3$)',
+                  'remote':'Remote ($\\beta_2$)',
+                  'remote_ls':'Remote X LS ($\\beta_3$)',
+                  'ls_other_remote':'Remote X MD',
+                  'ls_other_remote_hat':'Remote X $\hat{LS}$ ($\\beta_3$)',
+                  'ls_hat':'$\hat{LS}$ ($\\beta_1$)',
+                  'ls_other':'MD',
                   'perc_broadband':'Internet',
                   'lti':'LTI',
                   'ltv':'LTV',
@@ -88,7 +88,7 @@ def estimationTable(df, show = 'pval', stars = False, col_label = 'Est. Results'
                   'msamd':'MSAs/MDs',
                   'cert':'Lenders',
                   'intercept':'Intercept',
-                  'hw_pval':'DHW p-val',
+                  'dwh_p':'DHW p-val',
                   'fstat':'F-stat'}
     
     # Get parameter column and secondary columns (std, tval, pval)
@@ -122,7 +122,10 @@ def estimationTable(df, show = 'pval', stars = False, col_label = 'Est. Results'
     
     # append N, lenders, MSAs, adj. R2, Depvar, and FEs
     ## Make stats lists and maken index labels pretty
-    stats = df[['nobs', 'adj_rsquared', 'hw_pval', 'fixed effects']].iloc[0,:].apply(lambda x: round(x, 4) if isinstance(x, (int, float)) else x)
+    if '|' in col_label: # Ugly workaround
+        stats = df[['nobs', 'adj_rsquared', 'fstat', 'fixed effects']].iloc[0,:].apply(lambda x: round(x, 4) if isinstance(x, (int, float)) else x)
+    else:
+        stats = df[['nobs', 'adj_rsquared', 'dwh_p', 'fixed effects']].iloc[0,:].apply(lambda x: round(x, 4) if isinstance(x, (int, float)) else x)
     stats.index = [dictionary[val] for val in stats.index]
     
     ### Make df from stats
@@ -138,7 +141,7 @@ def resultsToLatex(results, caption = '', label = ''):
     # Prelim
     function_parameters = dict(na_rep = '',
                                index_names = False,
-                               column_format = 'p{2.5cm}' + 'p{2cm}' * results.shape[1],
+                               column_format = 'p{2.5cm}' + 'p{1.6cm}' * results.shape[1],
                                escape = False,
                                multicolumn = True,
                                multicolumn_format = 'c',
@@ -157,10 +160,7 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
         # Read df
         df = pd.read_csv(df_path, index_col = 0, dtype = {'nobs':'str'})
         df['nobs'] = df.nobs.str[:-2]
-        df['fixed effects'] = 'MSA-year, FIPS \& Lender'
-        
-        if '_fs' in df_path:
-            df['hw_pval'] = np.nan
+        df['fixed effects'] = 'FIPS \& Lender'
     
         # Call estimationTable and append to list
         list_of_results.append(estimationTable(df, show = 'pval', stars = False,\
@@ -170,14 +170,7 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
     results = pd.concat(list_of_results, axis = 1)
     
     # Order results
-    ## Get column indexes that are not in fist column and insert in index column 0
-    missing_cols = [var for i in range(len(list_of_results)-3,-1,-1) for var in list_of_results[i+1].index if var not in list_of_results[0].index]
-    target_cols = list_of_results[0].index.tolist()
-    for i in range(len(missing_cols)):
-        target_cols.insert(i + 2, missing_cols[i])
-    
-    # order results    
-    results = results.loc[target_cols,:]
+    results = results.loc[list_of_results[-1].index.to_numpy(),:]
 
     # Rename index
     results.index = [result if not show in result else '' for result in results.index]
@@ -207,7 +200,7 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
     
     ## Add note to the table
     # TODO: Add std, tval and stars option
-    note_string = '\justify\n\\scriptsize{\\textit{Notes.} Instrumental Variable  Benchmark Model results. The model is estimated with a 2SLS within estimator and includes clustered standard errors on the MSA-level. The dependent variable is Distance. The instrument for LS is the depth of the loan sales market. P-value in parentheses. LTI = loan-to-income ratio. Columns (1)--(2) display the first stage results and column (3)-(4) the second stage results. The model is estimated on the full sample (columns (1) and (3)) and the post-2009 sample (columns (2) and (4)).}\n'
+    note_string = '\justify\n\\scriptsize{\\textit{Notes.} Estimation results of the rate spread IV model. The model is estimated with a 2SLS within estimator and includes clustered standard errors on the MSA-level. The dependent variable is Distance. The instrument for LS is the depth of the loan sales market. P-value in parentheses. LS = Loan Sold, LTI = loan-to-income ratio, LTV = loan-to-value ratio, IO = Interest Only, MAT = Maturity loan 30 years and longer.}\n'
     location = results_latex.find('\end{tabular}\n')
     results_latex = results_latex[:location + len('\end{tabular}\n')] + note_string + results_latex[location + len('\end{tabular}\n'):]
     
@@ -219,28 +212,48 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
 #------------------------------------------------------------
     
 # Set path list
-path_list = ['Robustness_checks/Distance_robust_benchmark_IV_fs.csv',\
-             'Robustness_checks/Distance_robust_benchmark_IV_fs_1019.csv',\
-             'Robustness_checks/Distance_robust_benchmark_IV_ss.csv',
-             'Robustness_checks/Distance_robust_benchmark_IV_ss_1019.csv']
+path_list_fs = ['Results/ratespread_results_local_IV_full_fs1.csv',\
+                'Results/ratespread_results_local_IV_full_fs2.csv',\
+             'Results/ratespread_results_local_IV_2018_fs1.csv',\
+             'Results/ratespread_results_local_IV_2018_fs2.csv',\
+             'Results/ratespread_results_local_IV_2019_fs1.csv',\
+             'Results/ratespread_results_local_IV_2019_fs2.csv']
+    
+path_list = ['Results/ratespread_results_local_IV_full_ss.csv',\
+             'Results/ratespread_results_local_IV_2018_ss.csv',\
+             'Results/ratespread_results_local_IV_2019_ss.csv']
 
-col_label = ['First Stage|(1)','First Stage|(2)','Second Stage|(3)','Second Stage|(4)']
+col_label_fs = ['(2018--2019)|(1)','(2018--2019)|(2)',\
+                '(2018)|(3)','(2018)|(4)',\
+                '(2019)|(5)','(2019)|(6)']
+    
+col_label = ['(2018--2019)','(2018)','(2019)']
 
 # Set title and label
-caption = 'Robustness Results IV Benchmark Model'
-label = 'tab:robust_distance_iv'
+caption_fs = 'Estimation Results Rate Spread IV Model: First Stage'
+label_fs = 'tab:results_ratespread_iv_1'
+caption = 'Estimation Results Rate Spread IV Model: Second Stage'
+label = 'tab:results_ratespread_iv_2'
 
 # Call function
 df_results, latex_results = concatResults(path_list, col_label = col_label,\
                                                   caption = caption, label = label)
 
+df_results_fs, latex_results_fs = concatResults(path_list_fs, col_label = col_label_fs,\
+                                                  caption = caption_fs, label = label_fs)
 #------------------------------------------------------------
 # Save df and latex file
 #------------------------------------------------------------
 
-df_results.to_csv('Robustness_checks/Table_robust_distance_iv.csv')
+df_results_fs.to_csv('Results/Table_results_ratespread_IV_fs.csv')
 
-text_file_latex_results = open('Robustness_checks/Table_robust_distance_iv.tex', 'w')
+text_file_latex_results = open('Results/Table_results_ratespread_IV_fs.tex', 'w')
+text_file_latex_results.write(latex_results_fs)
+text_file_latex_results.close()
+
+df_results.to_csv('Results/Table_results_ratespread_IV.csv')
+
+text_file_latex_results = open('Results/Table_results_ratespread_IV.tex', 'w')
 text_file_latex_results.write(latex_results)
 text_file_latex_results.close()
 

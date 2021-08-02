@@ -39,8 +39,10 @@ def estimationTable(df, show = 'pval', stars = False, col_label = 'Est. Results'
     ## Set dictionary for index and columns
     dictionary = {'log_min_distance':'Distance',
                   'ls':'Loan Sold',
+                  'ls_hat':'$\hat{LS}$',
                   'ls_gse':'LS GSE',
                   'ls_priv':'LS Private',
+                  'ls_other':'MD',
                   'sec':'Securitization',
                   'ls_ever':'Loan Seller',
                   'log_min_distance_ls':'LS x Distance',
@@ -89,7 +91,8 @@ def estimationTable(df, show = 'pval', stars = False, col_label = 'Est. Results'
                   'fixed effects':'FE',
                   'msamd':'MSAs/MDs',
                   'cert':'Lenders',
-                  'intercept':'Intercept'}
+                  'intercept':'Intercept',
+                  'hw_pval':'DHW p-val'}
     
     # Get parameter column and secondary columns (std, tval, pval)
     params = df.params.round(4)
@@ -122,7 +125,10 @@ def estimationTable(df, show = 'pval', stars = False, col_label = 'Est. Results'
     
     # append N, lenders, MSAs, adj. R2, Depvar, and FEs
     ## Make stats lists and maken index labels pretty
-    stats = df[['nobs', 'adj_rsquared', 'fixed effects']].iloc[0,:].apply(lambda x: round(x, 4) if isinstance(x, (int, float)) else x)
+    try:
+        stats = df[['nobs', 'adj_rsquared','hw_pval', 'fixed effects']].iloc[0,:].apply(lambda x: round(x, 4) if isinstance(x, (int, float)) else x)
+    except:
+        stats = df[['nobs', 'adj_rsquared', 'fixed effects']].iloc[0,:].apply(lambda x: round(x, 4) if isinstance(x, (int, float)) else x)
     stats.index = [dictionary[val] for val in stats.index]
     
     ### Make df from stats
@@ -157,8 +163,8 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
         # Read df
         df = pd.read_csv(df_path, index_col = 0, dtype = {'nobs':'str'})
         df['nobs'] = df.nobs.str[:-2]
-        if '1319' in df_path:
-            df['fixed effects'] = 'MSA-year, FIPS \& Lender'
+        #if '1319' in df_path:
+        #    df['fixed effects'] = 'MSA-year, FIPS \& Lender'
     
         # Call estimationTable and append to list
         list_of_results.append(estimationTable(df, show = 'pval', stars = False,\
@@ -168,18 +174,21 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
     results = pd.concat(list_of_results, axis = 1)
     
     # Order results
+
     ## Get column indexes that are not in fist column and insert in index column 0
-    #missing_cols = [var for i in range(len(list_of_results)-2,-1,-1) for var in list_of_results[i+1].index if var not in list_of_results[0].index]
-    #target_cols = list_of_results[0].index.tolist()
-    #for i in range(len(missing_cols)):
-    #    target_cols.insert(i + 2, missing_cols[i])
-    
+    if '1319' in df_path:
+        missing_cols = [var for i in range(0,3) for var in list_of_results[i+1].index if var not in list_of_results[0].index]
+    else:
+        missing_cols = [var for i in range(0,2) for var in list_of_results[i+1].index if var not in list_of_results[0].index]
+    target_cols = list_of_results[0].index.tolist()
+    for i in range(len(missing_cols)):
+        target_cols.insert(i + 2, missing_cols[i])
+
     # order results    
-    results = results.loc[list_of_results[-1].index,:]
+    results = results.loc[target_cols,:]
 
     # Rename index
     results.index = [result if not show in result else '' for result in results.index]
-    
     
     # Rename columns if multicolumn
     if '|' in results.columns:
@@ -218,23 +227,34 @@ def concatResults(path_list, show = 'pval', stars = False, col_label = None, cap
     
 # Set path list
 path_list1819 = ['Robustness_checks/Benchmark_techinno_1819_{}.csv'.format(i) for i in range(7)]
+path_list1819_fs = ['Robustness_checks/Benchmark_techinno_1819_fs_{}.csv'.format(i) for i in [0,3,4,6]]
 path_list1319 = ['Robustness_checks/Benchmark_techinno_1319_{}.csv'.format(i) for i in range(9)]
+path_list1319_fs = ['Robustness_checks/Benchmark_techinno_1319_fs_{}.csv'.format(i) for i in [0,4,5,6,8]]
 
 col_label1819 = ['({})'.format(i + 1) for i in range(7)]
+col_label1819_fs = ['({})'.format(i + 1) for i in range(4)]
 col_label1319 = ['({})'.format(i + 1) for i in range(9)]
+col_label1319_fs = ['({})'.format(i + 1) for i in range(5)]
 
 # Set title and label
 caption1819 = 'Robustness Results Technological Innovation: Automated Lending and Credit Scoring'
 label1819 = 'tab:robust_techinno1'
+caption1819_fs = 'Robustness Results Technological Innovation: Automated Lending and Credit Scoring (First Stage)'
+label1819_fs = 'tab:robust_techinno1_fs'
 caption1319 = 'Robustness Results Technological Innovation: Internet Subscriptions'
 label1319 = 'tab:robust_techinno2'
+caption1319_fs = 'Robustness Results Technological Innovation: Internet Subscriptions (First Stage)'
+label1319_fs = 'tab:robust_techinno2_fs'
 
 # Call function
 df_results1819, latex_results1819 = concatResults(path_list1819, col_label = col_label1819,\
                                                   caption = caption1819, label = label1819)
+df_results1819_fs, latex_results1819_fs = concatResults(path_list1819_fs, col_label = col_label1819_fs,\
+                                                  caption = caption1819_fs, label = label1819_fs)
 df_results1319, latex_results1319 = concatResults(path_list1319, col_label = col_label1319,\
                                                   caption = caption1319, label = label1319)
-
+df_results1319_fs, latex_results1319_fs = concatResults(path_list1319_fs, col_label = col_label1319_fs,\
+                                                  caption = caption1319_fs, label = label1319_fs)
 #------------------------------------------------------------
 # Save df and latex file
 #------------------------------------------------------------
@@ -245,9 +265,20 @@ text_file_latex_results = open('Robustness_checks/Table_robust_techinno1.tex', '
 text_file_latex_results.write(latex_results1819)
 text_file_latex_results.close()
 
+df_results1819_fs.to_csv('Robustness_checks/Table_robust_techinno1_fs.csv')
+
+text_file_latex_results = open('Robustness_checks/Table_robust_techinno1_fs.tex', 'w')
+text_file_latex_results.write(latex_results1819_fs)
+text_file_latex_results.close()
+
 df_results1319.to_csv('Robustness_checks/Table_robust_techinno2.csv')
 
 text_file_latex_results = open('Robustness_checks/Table_robust_techinno2.tex', 'w')
 text_file_latex_results.write(latex_results1319)
 text_file_latex_results.close()
 
+df_results1319_fs.to_csv('Robustness_checks/Table_robust_techinno2_fs.csv')
+
+text_file_latex_results = open('Robustness_checks/Table_robust_techinno2_fs.tex', 'w')
+text_file_latex_results.write(latex_results1319_fs)
+text_file_latex_results.close()
